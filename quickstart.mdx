@@ -1,80 +1,397 @@
 ---
 title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+description: "Get started with the SeaArt SDK in minutes"
 ---
 
-## Get started in three steps
+# Quickstart
 
-Get your documentation site running locally and make your first customization.
-
-### Step 1: Set up your local environment
-
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
-
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
-
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 3: Go live
-
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
-
-## Next steps
-
-Now that you have your docs running, explore these key features:
-
-<CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
-</CardGroup>
+This guide will walk you through your first interactions with the SeaArt SDK: authenticating, chatting with an AI character, and generating an image.
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+  Make sure you've [installed the SDK](/installation) before proceeding.
 </Note>
+
+## Your First Chat
+
+Let's start by chatting with an AI character. The best part? You don't even need an account for this!
+
+<Steps>
+  <Step title="Import the SDK">
+    Import the necessary modules from the SDK:
+
+    ```python
+    from seaart import SyncClient
+    from seaart.helpers import extract_character_link
+    from seaart.types import AppId
+    ```
+
+    <Info>
+      We use `AppId.APP` when interacting with characters. This ensures proper API routing.
+    </Info>
+  </Step>
+
+  <Step title="Extract Character ID">
+    Get a character URL from [seaart.ai/character](https://www.seaart.ai/character) and extract the character ID:
+
+    ```python
+    # Example character URL
+    CHARACTER_URL = "https://www.seaart.ai/ru/character/chat/d5f5v2te878c73cmjhhg?from=null&s_id=123"
+    
+    # Extract the character ID from the URL
+    link = extract_character_link(CHARACTER_URL)
+    character_id = link.character_id
+    ```
+  </Step>
+
+  <Step title="Create a Client & Authenticate">
+    Create a client and log in as a tourist (no account needed):
+
+    ```python
+    with SyncClient(app_id=AppId.APP) as client:
+        # Login as tourist - no credentials required!
+        client.auth.login_as_tourist()
+    ```
+
+    <Tip>
+      The `with` statement ensures the client connection is properly closed when done.
+    </Tip>
+  </Step>
+
+  <Step title="Chat with the Character">
+    Create a chat session and send a message:
+
+    ```python
+    with SyncClient(app_id=AppId.APP) as client:
+        client.auth.login_as_tourist()
+        
+        # Create a new chat session
+        chat = client.characters.chats.create(character_id)
+        session_id = chat.value.session_id
+        
+        # Send a message and get the response
+        result = client.characters.chats.send(
+            "Hello! Tell me about yourself.",
+            session_id,
+        )
+        
+        print(result.text)
+    ```
+  </Step>
+</Steps>
+
+### Complete Character Chat Example
+
+Here's the complete code:
+
+```python examples/quickstart.py (lines 41-54)
+from seaart import SyncClient
+from seaart.helpers import extract_character_link
+from seaart.types import AppId
+
+CHARACTER_URL = "https://www.seaart.ai/ru/character/chat/d5f5v2te878c73cmjhhg?from=null&s_id=123"
+
+def chat_with_character():
+    """Send a message to a character and print the reply."""
+    link = extract_character_link(CHARACTER_URL)
+    
+    with SyncClient(app_id=AppId.APP) as client:
+        client.auth.login_as_tourist()
+        
+        chat = client.characters.chats.create(link.character_id)
+        result = client.characters.chats.send(
+            "Hello! Tell me about yourself.",
+            chat.value.session_id,
+        )
+        print(result.text)
+```
+
+## Generate Your First Image
+
+Now let's generate an image using AI. This requires a SeaArt.ai account.
+
+<Steps>
+  <Step title="Set Up Environment Variables">
+    Store your credentials securely:
+
+    ```bash .env
+    SEAART_EMAIL=your.email@example.com
+    SEAART_PASSWORD=your_password
+    ```
+
+    <Warning>
+      Never hardcode credentials in your code. Always use environment variables.
+    </Warning>
+  </Step>
+
+  <Step title="Import Required Modules">
+    ```python
+    import os
+    from seaart import SyncClient
+    from seaart.helpers import extract_model_link
+    ```
+  </Step>
+
+  <Step title="Extract Model Information">
+    Get a model URL from [seaart.ai/create](https://www.seaart.ai/create) and extract the model ID:
+
+    ```python
+    MODEL_URL = "https://www.seaart.ai/create/image?id=cu8d8ble878c738hejd0&model_ver_no=f1ebdcc036b767a672db420eb367688d"
+    
+    model = extract_model_link(MODEL_URL)
+    ```
+  </Step>
+
+  <Step title="Login & Generate">
+    Authenticate and generate an image:
+
+    ```python
+    with SyncClient() as client:
+        # Login with credentials
+        client.auth.login(
+            email=os.environ["SEAART_EMAIL"],
+            password=os.environ["SEAART_PASSWORD"],
+        )
+        
+        # Generate an image
+        envelope = client.images.text_to_img(
+            prompt="a serene mountain landscape at sunset, oil painting",
+            model_no=model.model_no,
+        )
+        
+        # Wait for the task to complete (up to 120 seconds)
+        item = envelope.wait(timeout=120)
+        
+        print(f"Image URL: {item.image_url}")
+    ```
+
+    <Info>
+      The `envelope.wait()` method polls the API until your image is ready. The timeout parameter specifies the maximum wait time in seconds.
+    </Info>
+  </Step>
+</Steps>
+
+### Complete Image Generation Example
+
+Here's the complete code:
+
+```python examples/quickstart.py (lines 62-79)
+import os
+from seaart import SyncClient
+from seaart.helpers import extract_model_link
+
+MODEL_URL = "https://www.seaart.ai/create/image?id=cu8d8ble878c738hejd0&model_ver_no=f1ebdcc036b767a672db420eb367688d"
+
+def generate_image():
+    """Generate an image from a text prompt and print the URL."""
+    model = extract_model_link(MODEL_URL)
+    
+    with SyncClient() as client:
+        client.auth.login(
+            email=os.environ["SEAART_EMAIL"],
+            password=os.environ["SEAART_PASSWORD"],
+        )
+        
+        envelope = client.images.text_to_img(
+            prompt="a serene mountain landscape at sunset, oil painting",
+            model_no=model.model_no,
+        )
+        item = envelope.wait(timeout=120)
+        print(f"Image URL: {item.image_url}")
+```
+
+## Authentication Methods
+
+The SDK supports three authentication methods:
+
+<CodeGroup>
+
+```python Email & Password
+from seaart import SyncClient
+import os
+
+with SyncClient() as client:
+    client.auth.login(
+        email=os.environ["SEAART_EMAIL"],
+        password=os.environ["SEAART_PASSWORD"],
+    )
+    # Now authenticated - use the client
+    info = client.account.me()
+    print(f"Logged in as: {info.value.name}")
+```
+
+```python Token-based
+from seaart import SyncClient
+import os
+
+# Pass token directly to skip login round-trip
+with SyncClient(token=os.environ["SEAART_TOKEN"]) as client:
+    info = client.account.me()
+    print(f"Account ID: {info.value.id}")
+```
+
+```python Tourist Mode
+from seaart import SyncClient
+
+with SyncClient() as client:
+    # No credentials needed!
+    client.auth.login_as_tourist()
+    # Limited access - good for trying out the SDK
+    session = client.auth.login_as_tourist()
+    print(f"Tourist ID: {session.value.account.id}")
+```
+
+</CodeGroup>
+
+<Warning>
+  Tourist accounts have limited quotas and cannot access all features. For production use, create a proper SeaArt.ai account.
+</Warning>
+
+## Using Async Client
+
+For async applications, use `AsyncClient` with the same API:
+
+```python
+import asyncio
+from seaart import AsyncClient
+from seaart.helpers import extract_character_link
+from seaart.types import AppId
+
+CHARACTER_URL = "https://www.seaart.ai/ru/character/chat/d5f5v2te878c73cmjhhg?from=null&s_id=123"
+
+async def chat_async():
+    link = extract_character_link(CHARACTER_URL)
+    
+    async with AsyncClient(app_id=AppId.APP) as client:
+        await client.auth.login_as_tourist()
+        
+        chat = await client.characters.chats.create(link.character_id)
+        result = await client.characters.chats.send(
+            "Hello!",
+            chat.value.session_id,
+        )
+        print(result.text)
+
+# Run the async function
+asyncio.run(chat_async())
+```
+
+<Tip>
+  The async and sync clients have **identical APIs**. Just add `async`/`await` keywords!
+</Tip>
+
+## Streaming Responses
+
+For real-time chat experiences, use streaming:
+
+```python examples/characters_stream.py (lines 56-64)
+for item in client.characters.chats.stream(
+    "Tell me a short story.",
+    session_id,
+):
+    if item.event == "chunk":
+        # Print each token as it arrives
+        print(item.content, end="", flush=True)
+    elif item.event == "end":
+        # Final event with metadata
+        print(f"\n\n[msg_id={item.response_msg_id}]")
+```
+
+<Info>
+  Streaming is perfect for chat interfaces where you want to show responses token-by-token, like ChatGPT.
+</Info>
+
+## Next Steps
+
+Now that you've completed the quickstart, explore more advanced features:
+
+<CardGroup cols={2}>
+  <Card title="Character Chat Guide" icon="comments" href="/guides/character-chat">
+    Learn about chat history, settings, voice audio, and advanced features
+  </Card>
+  
+  <Card title="Image Generation Guide" icon="image" href="/guides/image-generation">
+    Explore text-to-image, img-to-img, upscaling, and background removal
+  </Card>
+  
+  <Card title="API Reference" icon="code" href="/api/sync-client">
+    Complete API documentation for all methods and parameters
+  </Card>
+  
+  <Card title="Examples" icon="flask" href="/examples/chat-basics">
+    Browse real-world examples for various use cases
+  </Card>
+</CardGroup>
+
+## Common Patterns
+
+### Error Handling
+
+```python
+from seaart import SyncClient
+from seaart.exceptions import APIError, MissingDataError
+
+try:
+    with SyncClient() as client:
+        client.auth.login(email="user@example.com", password="wrong_password")
+except APIError as e:
+    print(f"API Error: {e.status_code} - {e.message}")
+except MissingDataError:
+    print("Server returned no data")
+```
+
+### Context Manager Pattern
+
+Always use the context manager to ensure proper cleanup:
+
+```python
+# ✅ Good - connection is automatically closed
+with SyncClient() as client:
+    result = client.account.me()
+
+# ❌ Bad - connection might not be closed properly
+client = SyncClient()
+result = client.account.me()
+client.close()  # Easy to forget!
+```
+
+### Accessing Response Data
+
+API responses are wrapped in `APIEnvelope`. Use `.value` to access the data:
+
+```python
+envelope = client.account.me()
+print(envelope.value.name)  # Access the account name
+print(envelope.value.id)    # Access the account ID
+
+# Full response structure
+print(envelope.code)    # Response code
+print(envelope.msg)     # Response message
+print(envelope.data)    # Raw data dict
+```
+
+<Note>
+  If the server returns no data, accessing `.value` will raise a `MissingDataError`.
+</Note>
+
+## Troubleshooting
+
+### "No module named 'seaart'"
+
+Ensure the SDK is installed: `pip install seaart`
+
+### "Token required" errors
+
+Make sure to call `login()` or `login_as_tourist()` before making API requests.
+
+### Image generation timeout
+
+Increase the timeout: `envelope.wait(timeout=300)` for complex images.
+
+### Character not responding
+
+Ensure you're using `AppId.APP` when creating the client for character interactions:
+
+```python
+with SyncClient(app_id=AppId.APP) as client:  # ✅ Correct
+    # character operations...
+```

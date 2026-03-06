@@ -1,0 +1,138 @@
+---
+title: "Auth"
+description: "Authentication resource for login, logout, and session management"
+---
+
+# Auth
+
+The Auth resource handles authentication for the SeaArt API client. It manages login, logout, and session token management.
+
+**Access:** `client.auth`
+
+## Methods
+
+### login
+
+Log in with email and password. On success, the client's auth token is updated automatically.
+
+```python
+from seaart import SyncClient
+
+client = SyncClient()
+session = client.auth.login("user@example.com", "secret")
+print(session.value.token)
+```
+
+<ParamField path="email" type="str" required>
+  Account email address
+</ParamField>
+
+<ParamField path="password" type="str" required>
+  Account password
+</ParamField>
+
+<ResponseField name="return" type="APIEnvelope[AuthSession]">
+  Envelope containing the session data:
+  - `.value.token` - The authentication token
+  - `.value.account` - Basic account information (ID, email, name, etc.)
+</ResponseField>
+
+**Raises:**
+- `AuthError` - If authentication fails
+- `AccountNotFoundError` - If no account with that email exists
+- `InvalidPasswordError` - If the password is incorrect
+- `AccountBlockedError` - If the account is blocked
+
+**Location:** `src/seaart/resources/sync/auth.py:27`
+
+---
+
+### login_as_tourist
+
+Log in as a guest without credentials. On success, the client's auth token is updated automatically.
+
+```python
+session = client.auth.login_as_tourist()
+print(session.value.token)
+
+# Optional: provide a device ID
+session = client.auth.login_as_tourist(device_id="device-123")
+```
+
+<ParamField path="device_id" type="str | None" default="None">
+  Optional device identifier to associate with the guest session
+</ParamField>
+
+<ResponseField name="return" type="APIEnvelope[AuthSession]">
+  Envelope containing the guest session data:
+  - `.value.token` - The guest authentication token
+</ResponseField>
+
+**Location:** `src/seaart/resources/sync/auth.py:57`
+
+---
+
+### logout
+
+Log out the current session. Clears the client's auth token and notifies the server.
+
+```python
+client.auth.logout()
+```
+
+<ResponseField name="return" type="APIEnvelope[None]">
+  Empty envelope indicating successful logout
+</ResponseField>
+
+**Location:** `src/seaart/resources/sync/auth.py:83`
+
+---
+
+### forgot_password
+
+Send a password-reset email to the specified account.
+
+```python
+client.auth.forgot_password("user@example.com")
+```
+
+<ParamField path="email" type="str" required>
+  Email address of the account to reset
+</ParamField>
+
+<ResponseField name="return" type="APIEnvelope[None]">
+  Empty envelope indicating the email was sent successfully
+</ResponseField>
+
+**Location:** `src/seaart/resources/sync/auth.py:98`
+
+## Types
+
+### AuthSession
+
+Represents an authenticated session:
+
+```python
+class AuthSession(APIDataModel):
+    account: Account  # Account information
+    token: str        # Authentication token
+```
+
+### Account
+
+Basic account information:
+
+```python
+class Account(APIDataModel):
+    id: str
+    email: str | None
+    name: str
+    head: str | None          # Profile picture URL
+    avatar_frame: str | None
+    create_at: int | None
+    status: int | None
+    device_code: str | None
+    is_europe: bool | None
+    lang: str | None
+    lang_code: str | None
+```

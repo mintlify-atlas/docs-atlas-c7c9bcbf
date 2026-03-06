@@ -1,0 +1,358 @@
+---
+title: Async Usage
+description: Using AsyncClient for concurrent operations and streaming
+---
+
+## Why AsyncClient?
+
+AsyncClient has the same API as SyncClient — just add `async with`, `await`, and `async for`. The real difference is concurrency:
+
+**SyncClient**: Every HTTP request blocks the thread. Operations are always sequential.
+
+**AsyncClient**: The event loop handles I/O in the background. Multiple operations run concurrently on one thread.
+
+### When to Use AsyncClient
+
+- Generate several images at the same time
+- Stream responses from multiple characters simultaneously
+- Build bots or servers that handle many users at once
+- Integrate with async frameworks (FastAPI, Discord.py, etc.)
+
+## Concurrent Image Generation
+
+Generate multiple images concurrently:
+
+```python
+import asyncio
+import os
+from seaart import AsyncClient
+from seaart.helpers import extract_model_link
+
+MODEL_URL = "https://www.seaart.ai/create/image?id=cu8d8ble878c738hejd0&model_ver_no=f1ebdcc036b767a672db420eb367688d"
+
+async def concurrent_image_generation():
+    """Generate several images at the same time.
+    
+    With SyncClient, three text_to_img calls run one after another —
+    total time = sum of all three generation times.
+    
+    Here we submit all tasks first (each await is just the short HTTP POST,
+    not the generation itself), then wait for all of them concurrently.
+    Total time ≈ time of the slowest single task.
+    """
+    model = extract_model_link(MODEL_URL)
+    assert model is not None
+
+    async with AsyncClient() as client:
+        await client.auth.login(
+            email=os.environ["SEAART_EMAIL"],
+            password=os.environ["SEAART_PASSWORD"],
+        )
+
+        # Submit all three tasks — each await returns immediately
+        # after the server accepts the request.
+        t1 = await client.images.text_to_img(
+            "a serene mountain lake at dawn, oil painting", model.model_no
+        )
+        t2 = await client.images.text_to_img(
+            "cyberpunk city street in heavy rain, neon reflections", model.model_no
+        )
+        t3 = await client.images.text_to_img(
+            "a fox sitting in an autumn forest, watercolor", model.model_no
+        )
+
+        print(f"Tasks submitted: {t1.value.id}, {t2.value.id}, {t3.value.id}")
+
+        # Poll all three concurrently — they don't block each other.
+        results = await asyncio.gather(
+            t1.wait(timeout=180),
+            t2.wait(timeout=180),
+            t3.wait(timeout=180),
+        )
+
+        print("All done:")
+        for item in results:
+            print(f"  {item.image_url}")
+
+if __name__ == "__main__":
+    asyncio.run(concurrent_image_generation())
+```
+
+### Performance Comparison
+
+| Approach | Total Time |
+|----------|------------|
+| SyncClient (sequential) | ~180 seconds (3 × 60s) |
+| AsyncClient (concurrent) | ~60 seconds (max of 3) |
+
+<Tip>
+SyncClient also has `wait_many()` for concurrent polling, but the submissions themselves are still blocking one-by-one. With AsyncClient both submission and waiting are fully concurrent.
+</Tip>
+
+## Concurrent Character Streaming
+
+Stream responses from two characters at the same time:
+
+```python
+import asyncio
+import os
+from seaart import AsyncClient
+from seaart.helpers import extract_character_link
+from seaart.types import AppId
+
+CHARACTER_URL_A = "https://www.seaart.ai/ru/character/chat/d5f5v2te878c73cmjhhg?from=null&s_id=123"
+CHARACTER_URL_B = "https://www.seaart.ai/ru/character/chat/d5f5v2te878c73cmjhhg?from=null&s_id=456"
+
+async def concurrent_character_streams():
+    """Stream responses from two characters at the same time.
+    
+    This is impossible with SyncClient without threads — a synchronous
+    SSE stream blocks the thread for its entire duration. You literally
+    cannot read from two streams at once.
+    
+    AsyncClient suspends each coroutine while waiting for the next chunk,
+    so both streams make progress concurrently on a single thread.
+    """
+    link_a = extract_character_link(CHARACTER_URL_A)
+    link_b = extract_character_link(CHARACTER_URL_B)
+    assert link_a is not None and link_b is not None
+
+    async with AsyncClient(app_id=AppId.APP) as client:
+        await client.auth.login(
+            email=os.environ["SEAART_EMAIL"],
+            password=os.environ["SEAART_PASSWORD"],
+        )
+
+        async def stream_character(character_id: str, question: str):
+            """Open a session, stream the reply, then clean up."""
+            chat = await client.characters.chats.create(character_id)
+            session_id = chat.value.session_id
+            await client.characters.chats.start(session_id)
+
+            try:
+                async for item in client.characters.chats.stream(
+                    question, session_id
+                ):
+                    if item.event == "chunk":
+                        # Prefix so you can tell the characters apart.
+                        tag = character_id[:8]
+                        print(f"[{tag}] {item.content}", end="", flush=True)
+                    elif item.event == "end":
+                        print()
+            finally:
+                await client.characters.chats.delete(session_id)
+
+        # Both coroutines run concurrently on the same event loop.
+        async with asyncio.TaskGroup() as tg:
+            tg.create_task(
+                stream_character(link_a.character_id, "Tell me about yourself.")
+            )
+            tg.create_task(
+                stream_character(link_b.character_id, "What's your favorite story?")
+            )
+
+if __name__ == "__main__":
+    asyncio.run(concurrent_character_streams())
+```
+
+### Key Points
+
+- Use `async with AsyncClient()` instead of `SyncClient()`
+- Add `await` before all client method calls
+- Use `async for` for streaming methods
+- Use `asyncio.gather()` or `TaskGroup` for concurrency
+
+## Async Context Manager Pattern
+
+Always use `async with` for proper resource cleanup:
+
+```python
+import asyncio
+import os
+from seaart import AsyncClient
+
+async def main():
+    # ✅ Good: automatic cleanup
+    async with AsyncClient() as client:
+        await client.auth.login(
+            email=os.environ["SEAART_EMAIL"],
+            password=os.environ["SEAART_PASSWORD"],
+        )
+        # ... use client ...
+    # Connection closed automatically
+
+    # ❌ Bad: manual cleanup required
+    client = AsyncClient()
+    try:
+        await client.auth.login(
+            email=os.environ["SEAART_EMAIL"],
+            password=os.environ["SEAART_PASSWORD"],
+        )
+        # ... use client ...
+    finally:
+        await client.close()
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+## Error Handling with Concurrent Tasks
+
+Handle errors gracefully when running concurrent operations:
+
+```python
+import asyncio
+import os
+from seaart import AsyncClient
+from seaart.helpers import extract_model_link
+from seaart.types import APIError
+
+MODEL_URL = "https://www.seaart.ai/create/image?id=cu8d8ble878c738hejd0&model_ver_no=f1ebdcc036b767a672db420eb367688d"
+
+async def generate_with_error_handling():
+    """Generate images with proper error handling."""
+    model = extract_model_link(MODEL_URL)
+    assert model is not None
+
+    async with AsyncClient() as client:
+        await client.auth.login(
+            email=os.environ["SEAART_EMAIL"],
+            password=os.environ["SEAART_PASSWORD"],
+        )
+
+        async def safe_generate(prompt: str, task_id: int):
+            """Generate an image with error handling."""
+            try:
+                envelope = await client.images.text_to_img(
+                    prompt, model.model_no
+                )
+                item = await envelope.wait(timeout=180)
+                return {"id": task_id, "url": item.image_url, "error": None}
+            except APIError as e:
+                return {"id": task_id, "url": None, "error": str(e)}
+            except asyncio.TimeoutError:
+                return {"id": task_id, "url": None, "error": "Timeout"}
+
+        # Run all tasks concurrently
+        results = await asyncio.gather(
+            safe_generate("mountain landscape", 1),
+            safe_generate("city street", 2),
+            safe_generate("forest scene", 3),
+        )
+
+        # Process results
+        for result in results:
+            if result["error"]:
+                print(f"Task {result['id']} failed: {result['error']}")
+            else:
+                print(f"Task {result['id']}: {result['url']}")
+
+if __name__ == "__main__":
+    asyncio.run(generate_with_error_handling())
+```
+
+## Integration with FastAPI
+
+Use AsyncClient in web applications:
+
+```python
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from seaart import AsyncClient
+from seaart.helpers import extract_model_link
+import os
+
+app = FastAPI()
+
+class GenerateRequest(BaseModel):
+    prompt: str
+    model_url: str
+
+class GenerateResponse(BaseModel):
+    task_id: str
+    image_url: str
+
+@app.post("/generate", response_model=GenerateResponse)
+async def generate_image(request: GenerateRequest):
+    """Generate an image from a prompt."""
+    model = extract_model_link(request.model_url)
+    if not model:
+        raise HTTPException(status_code=400, detail="Invalid model URL")
+
+    async with AsyncClient() as client:
+        await client.auth.login(
+            email=os.environ["SEAART_EMAIL"],
+            password=os.environ["SEAART_PASSWORD"],
+        )
+
+        envelope = await client.images.text_to_img(
+            prompt=request.prompt,
+            model_no=model.model_no,
+        )
+        item = await envelope.wait(timeout=180)
+
+        return GenerateResponse(
+            task_id=envelope.value.id,
+            image_url=item.image_url,
+        )
+```
+
+<Note>
+In production, use dependency injection to create a single AsyncClient instance that's reused across requests instead of creating a new client for each request.
+</Note>
+
+## Sync vs Async Comparison
+
+<Tabs>
+  <Tab title="Sync">
+    ```python
+    from seaart import SyncClient
+    import os
+
+    def generate_image():
+        with SyncClient() as client:
+            client.auth.login(
+                email=os.environ["SEAART_EMAIL"],
+                password=os.environ["SEAART_PASSWORD"],
+            )
+
+            envelope = client.images.text_to_img(
+                "mountain landscape",
+                model_no="some_model",
+            )
+            item = envelope.wait(timeout=120)
+            print(item.image_url)
+
+    generate_image()
+    ```
+  </Tab>
+  <Tab title="Async">
+    ```python
+    from seaart import AsyncClient
+    import asyncio
+    import os
+
+    async def generate_image():
+        async with AsyncClient() as client:
+            await client.auth.login(
+                email=os.environ["SEAART_EMAIL"],
+                password=os.environ["SEAART_PASSWORD"],
+            )
+
+            envelope = await client.images.text_to_img(
+                "mountain landscape",
+                model_no="some_model",
+            )
+            item = await envelope.wait(timeout=120)
+            print(item.image_url)
+
+    asyncio.run(generate_image())
+    ```
+  </Tab>
+</Tabs>
+
+## Next Steps
+
+- [Image Workflows](/examples/image-workflows) for more generation examples
+- [Chat Basics](/examples/chat-basics) for character interaction patterns
+- [API Reference](/api/sync-client) for complete async method signatures

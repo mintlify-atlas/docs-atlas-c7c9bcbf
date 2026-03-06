@@ -1,0 +1,350 @@
+---
+title: "Prompts"
+description: "Enhance and optimize prompts with AI assistance"
+---
+
+## Overview
+
+The `PromptsResource` provides methods to enhance prompts with AI and get prompt recommendations for specific models.
+
+Accessible via `client.prompts` (sync) or `client.prompts` (async).
+
+## Methods
+
+### render()
+
+Enhance a prompt using AI and return the final result. This is a convenience wrapper around `stream_render()` that returns only the final enhanced prompt.
+
+<ParamField path="initial_prompt" type="str" required>
+  The raw prompt text to enhance
+</ParamField>
+
+<ResponseField name="return" type="str | None">
+  The final AI-enhanced prompt string, or `None` if the server returned no data
+</ResponseField>
+
+<CodeGroup>
+```python Sync
+from seaart import SyncClient
+
+with SyncClient() as client:
+    client.auth.login(email="user@example.com", password="password")
+    
+    # Enhance a simple prompt
+    enhanced = client.prompts.render("a cat")
+    
+    if enhanced:
+        print(f"Original: a cat")
+        print(f"Enhanced: {enhanced}")
+        # Output might be: "a cat, highly detailed, 8k resolution, 
+        # professional photography, natural lighting"
+```
+
+```python Async
+from seaart import AsyncClient
+
+async with AsyncClient() as client:
+    await client.auth.login(email="user@example.com", password="password")
+    
+    # Enhance a prompt
+    enhanced = await client.prompts.render("a cat")
+    
+    if enhanced:
+        print(f"Enhanced: {enhanced}")
+```
+</CodeGroup>
+
+---
+
+### stream_render()
+
+Stream an AI-enhanced version of a prompt with progressive refinement. The server sends intermediate results as the prompt is being enhanced.
+
+<ParamField path="initial_prompt" type="str" required>
+  The raw prompt text to enhance
+</ParamField>
+
+<ResponseField name="yields" type="Iterator[APIEnvelope[Any]]">
+  Generator that yields API envelopes as they arrive from the stream
+  
+  <Expandable title="Envelope contents">
+    <ResponseField name="data" type="dict | None">
+      Dictionary containing a `"prompt"` key with the current enhanced text
+    </ResponseField>
+    
+    <ResponseField name="status.code" type="int">
+      Status code - `10000` indicates the final result
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<CodeGroup>
+```python Sync
+from seaart import SyncClient
+
+with SyncClient() as client:
+    client.auth.login(email="user@example.com", password="password")
+    
+    # Stream prompt enhancement
+    for env in client.prompts.stream_render("a cat"):
+        if env.data:
+            current_prompt = env.data.get("prompt")
+            print(f"Current: {current_prompt}")
+            
+            # Check if this is the final version
+            if env.status.code == 10000:
+                print(f"Final: {current_prompt}")
+```
+
+```python Async
+from seaart import AsyncClient
+
+async with AsyncClient() as client:
+    await client.auth.login(email="user@example.com", password="password")
+    
+    # Stream prompt enhancement
+    async for env in client.prompts.stream_render("a cat"):
+        if env.data:
+            print(f"Current: {env.data.get('prompt')}")
+```
+</CodeGroup>
+
+---
+
+### recommend()
+
+Fetch prompt recommendations for a specific model. Returns a list of suggested prompts that work well with the model.
+
+<ParamField path="model_no" type="str" required>
+  Model identifier to generate recommendations for
+</ParamField>
+
+<ParamField path="base_model_name" type="str | None" default="None">
+  Optional base model name to refine results (e.g., "SDXL", "SD1.5")
+</ParamField>
+
+<ResponseField name="return" type="APIEnvelope[list[PromptRecommendation]]">
+  API envelope containing a list of prompt recommendations
+  
+  <Expandable title="PromptRecommendation fields">
+    <ResponseField name="local" type="str | None">
+      Recommended prompt text
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<CodeGroup>
+```python Sync
+from seaart import SyncClient
+
+with SyncClient() as client:
+    client.auth.login(email="user@example.com", password="password")
+    
+    # Get recommendations for a model
+    result = client.prompts.recommend("model_abc123")
+    
+    # Display recommendations
+    if result.value:
+        print("Recommended prompts:")
+        for rec in result.value:
+            if rec.local:
+                print(f"  - {rec.local}")
+```
+
+```python Async
+from seaart import AsyncClient
+
+async with AsyncClient() as client:
+    await client.auth.login(email="user@example.com", password="password")
+    
+    # Get recommendations
+    result = await client.prompts.recommend("model_abc123")
+    
+    if result.value:
+        for rec in result.value:
+            if rec.local:
+                print(f"Recommended: {rec.local}")
+```
+</CodeGroup>
+
+## Type Reference
+
+### PromptRecommendation
+
+<ResponseField name="local" type="str | None">
+  Recommended prompt text in the user's locale
+</ResponseField>
+
+## Usage Examples
+
+### Enhancing User Input
+
+```python
+from seaart import SyncClient
+
+with SyncClient() as client:
+    client.auth.login(email="user@example.com", password="password")
+    
+    # Get user input
+    user_prompt = input("Enter your prompt: ")
+    
+    # Enhance it
+    enhanced = client.prompts.render(user_prompt)
+    
+    if enhanced:
+        print(f"\nOriginal: {user_prompt}")
+        print(f"Enhanced: {enhanced}")
+        
+        # Use enhanced prompt for generation
+        task = client.images.txt2img(
+            prompt=enhanced,
+            model_no="model_abc123"
+        )
+        
+        result = client.tasks.wait(task.value.id)
+        print(f"\nGenerated: {result.image_url}")
+```
+
+### Interactive Enhancement
+
+```python
+from seaart import SyncClient
+
+with SyncClient() as client:
+    client.auth.login(email="user@example.com", password="password")
+    
+    print("Enhancing prompt...")
+    
+    # Show progressive enhancement
+    last_prompt = None
+    for env in client.prompts.stream_render("a beautiful landscape"):
+        if env.data:
+            current = env.data.get("prompt")
+            if current != last_prompt:
+                print(f"\rEnhanced: {current}", end="")
+                last_prompt = current
+    
+    print()  # New line after completion
+```
+
+### Using Model Recommendations
+
+```python
+from seaart import SyncClient
+import random
+
+with SyncClient() as client:
+    client.auth.login(email="user@example.com", password="password")
+    
+    model_id = "model_abc123"
+    
+    # Get model info
+    model = client.models.detail(model_id)
+    print(f"Model: {model.value.name}")
+    
+    # Get recommended prompts
+    recs = client.prompts.recommend(model_id)
+    
+    if recs.value:
+        # Pick a random recommendation
+        rec = random.choice(recs.value)
+        if rec.local:
+            print(f"Using recommended prompt: {rec.local}")
+            
+            # Generate with recommended prompt
+            task = client.images.txt2img(
+                prompt=rec.local,
+                model_no=model_id
+            )
+            
+            result = client.tasks.wait(task.value.id)
+            print(f"Generated: {result.image_url}")
+```
+
+### Combining Enhancement and Generation
+
+```python
+from seaart import SyncClient
+
+def generate_with_enhancement(
+    client: SyncClient,
+    prompt: str,
+    model_no: str
+) -> str:
+    """Generate an image with automatic prompt enhancement."""
+    
+    # Enhance the prompt
+    enhanced = client.prompts.render(prompt)
+    
+    if not enhanced:
+        print("Enhancement failed, using original prompt")
+        enhanced = prompt
+    else:
+        print(f"Enhanced prompt: {enhanced}")
+    
+    # Generate image
+    task = client.images.txt2img(
+        prompt=enhanced,
+        model_no=model_no
+    )
+    
+    # Wait for result
+    result = client.tasks.wait(task.value.id)
+    return result.image_url
+
+with SyncClient() as client:
+    client.auth.login(email="user@example.com", password="password")
+    
+    image_url = generate_with_enhancement(
+        client,
+        prompt="a sunset",
+        model_no="model_abc123"
+    )
+    
+    print(f"Result: {image_url}")
+```
+
+### Batch Enhancement
+
+```python
+from seaart import SyncClient
+
+with SyncClient() as client:
+    client.auth.login(email="user@example.com", password="password")
+    
+    simple_prompts = [
+        "a cat",
+        "a dog",
+        "a bird",
+        "a fish"
+    ]
+    
+    enhanced_prompts = []
+    for prompt in simple_prompts:
+        enhanced = client.prompts.render(prompt)
+        if enhanced:
+            enhanced_prompts.append(enhanced)
+            print(f"{prompt} -> {enhanced}")
+    
+    # Use enhanced prompts for generation
+    for enhanced in enhanced_prompts:
+        task = client.images.txt2img(
+            prompt=enhanced,
+            model_no="model_abc123"
+        )
+        print(f"Started task: {task.value.id}")
+```
+
+## Best Practices
+
+<Note>
+  **Use `render()` for simplicity**: Unless you need to show progressive updates to users, prefer `render()` over `stream_render()` for cleaner code.
+</Note>
+
+<Tip>
+  **Combine with model info**: Get prompt recommendations for specific models to learn what works well, then enhance user prompts to match that style.
+</Tip>
+
+<Warning>
+  **Handle None returns**: The `render()` method can return `None` if the server doesn't provide data. Always check the return value before using it.
+</Warning>

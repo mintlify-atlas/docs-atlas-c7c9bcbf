@@ -1,0 +1,283 @@
+---
+title: "GenAgent"
+description: "Gen Agent (AI Assistant) resource for conversational AI"
+---
+
+# GenAgent
+
+The GenAgent resource provides access to SeaArt's AI assistant for conversational interactions and creative generation tasks.
+
+**Access:** `client.genagent`
+
+## Sub-resources
+
+- **`messages`** - Send messages and stream responses
+
+## Conversation Methods
+
+### create
+
+Create a new Gen Agent conversation.
+
+```python
+from seaart import SyncClient
+
+client = SyncClient()
+client.auth.login("user@example.com", "password")
+
+result = client.genagent.create()
+conv_id = result.value.conv_id
+```
+
+<ParamField path="conv_type" type="str | None" default="None">
+  Optional conversation type hint forwarded to the API
+</ParamField>
+
+<ResponseField name="return" type="APIEnvelope[ConversationId]">
+  Conversation information:
+  - `.value.conv_id` - New conversation ID to pass to `messages.stream()` / `messages.send()`
+</ResponseField>
+
+**Location:** `src/seaart/resources/sync/genagent/gen_agent.py:32`
+
+---
+
+### delete
+
+Delete a Gen Agent conversation.
+
+```python
+client.genagent.delete(conv_id)
+```
+
+<ParamField path="conv_id" type="str" required>
+  ID of the conversation to delete
+</ParamField>
+
+<ResponseField name="return" type="APIEnvelope[None]">
+  Empty envelope indicating successful deletion
+</ResponseField>
+
+**Location:** `src/seaart/resources/sync/genagent/gen_agent.py:52`
+
+---
+
+## Message Methods
+
+**Access:** `client.genagent.messages`
+
+The messages sub-resource manages sending messages and receiving streaming responses from the Gen Agent.
+
+### stream
+
+Send a message to the Gen Agent and stream the response in real time.
+
+```python
+for item in client.genagent.messages.stream(
+    message="Generate a fantasy portrait",
+    conv_id=conv_id
+):
+    if item.event == "message":
+        print(item.text, end="", flush=True)
+    elif item.event == "end":
+        print(f"\n\nMessage ID: {item.msg_id}")
+        print(f"Status: {item.status}")
+```
+
+<ParamField path="message" type="str" required>
+  User message text to send
+</ParamField>
+
+<ParamField path="conv_id" type="str" required>
+  ID of the existing conversation
+</ParamField>
+
+<ParamField path="parent_msg_id" type="str | None" default="None">
+  Parent message ID for threaded replies
+</ParamField>
+
+<ParamField path="start_new_topic" type="bool" default="True">
+  Whether to start a new topic in the conversation
+</ParamField>
+
+<ParamField path="role" type="str" default="'user'">
+  Role of the sender
+</ParamField>
+
+<ParamField path="options" type="GenAgentReqOptions | None" default="None">
+  Additional request options:
+  - Attached images
+  - Model overrides
+  - Agent mode configuration
+  - See `GenAgentReqOptions` for full details
+</ParamField>
+
+<ResponseField name="yields" type="Iterator[AgentGenerationStreamItem]">
+  Stream of items:
+  
+  **Message chunks:**
+  - `AgentGenerationChunk` with `.event == "message"`
+  - `.text` contains the text fragment
+  - Print or process each fragment as it arrives
+  
+  **Final event:**
+  - `AgentGenerationEnd` with `.event == "end"`
+  - `.msg_id` - Generated message ID
+  - `.parent_msg_id` - Parent message ID
+  - `.status` - Completion status
+  - Other metadata
+</ResponseField>
+
+**Example with images:**
+
+```python
+from seaart.options import GenAgentReqOptions
+
+options = GenAgentReqOptions(
+    images=["https://example.com/image.png"]
+)
+
+for item in client.genagent.messages.stream(
+    message="What's in this image?",
+    conv_id=conv_id,
+    options=options
+):
+    if item.event == "message":
+        print(item.text, end="")
+```
+
+**Location:** `src/seaart/resources/sync/genagent/gen_agent_messages.py:29`
+
+---
+
+### send
+
+Send a message to the Gen Agent and return the full response.
+
+This is a convenience wrapper around `stream()` that collects all chunks and returns the complete assembled result.
+
+```python
+result = client.genagent.messages.send(
+    message="Generate a fantasy portrait",
+    conv_id=conv_id
+)
+
+if result:
+    print(result.text)  # Complete response text
+    print(result.value.msg_id)  # Message ID
+    print(result.value.status)  # Status
+```
+
+<ParamField path="message" type="str" required>
+  User message text to send
+</ParamField>
+
+<ParamField path="conv_id" type="str" required>
+  ID of the existing conversation
+</ParamField>
+
+<ParamField path="parent_msg_id" type="str | None" default="None">
+  Parent message ID for threaded replies
+</ParamField>
+
+<ParamField path="start_new_topic" type="bool" default="True">
+  Whether to start a new topic in the conversation
+</ParamField>
+
+<ParamField path="role" type="str" default="'user'">
+  Role of the sender
+</ParamField>
+
+<ParamField path="options" type="GenAgentReqOptions | None" default="None">
+  Additional request options. See `GenAgentReqOptions` for details
+</ParamField>
+
+<ResponseField name="return" type="AgentGenerationResult | None">
+  Complete response result:
+  - `.text` - Full assembled response text
+  - `.value` - Final `AgentGenerationEnd` object with:
+    - `.msg_id` - Generated message ID
+    - `.parent_msg_id` - Parent message ID  
+    - `.status` - Completion status
+    - Other metadata
+  
+  Returns `None` if no content was generated
+</ResponseField>
+
+**Example with conversation continuation:**
+
+```python
+# First message
+result1 = client.genagent.messages.send(
+    message="Tell me about cats",
+    conv_id=conv_id
+)
+
+if result1:
+    print(result1.text)
+    
+    # Follow-up message in same conversation
+    result2 = client.genagent.messages.send(
+        message="What about dogs?",
+        conv_id=conv_id,
+        parent_msg_id=result1.value.msg_id
+    )
+    
+    if result2:
+        print(result2.text)
+```
+
+**Location:** `src/seaart/resources/sync/genagent/gen_agent_messages.py:108`
+
+---
+
+## Types
+
+### AgentGenerationChunk
+
+Represents a streaming message chunk:
+
+```python
+class AgentGenerationChunk:
+    event: str = "message"  # Always "message" for chunks
+    text: str               # Text fragment
+    # Additional fields from API response
+```
+
+### AgentGenerationEnd
+
+Represents the final event in a stream:
+
+```python
+class AgentGenerationEnd:
+    event: str = "end"      # Always "end" for final event
+    status: str             # Completion status
+    msg_id: str             # Generated message ID
+    parent_msg_id: str      # Parent message ID
+    # Additional metadata fields
+```
+
+### AgentGenerationResult
+
+Combined result from `send()`:
+
+```python
+class AgentGenerationResult:
+    text: str                        # Full assembled response
+    value: AgentGenerationEnd        # Final event metadata
+```
+
+### GenAgentReqOptions
+
+Request options for advanced usage:
+
+```python
+from seaart.options import GenAgentReqOptions
+
+options = GenAgentReqOptions(
+    images=["https://example.com/image.png"],  # Attach images
+    # Add other configuration as needed
+)
+```
+
+See `src/seaart/options/gen_agent_messages.py` for full configuration options.

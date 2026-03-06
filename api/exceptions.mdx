@@ -1,0 +1,643 @@
+---
+title: Exceptions
+description: Error types and exception handling in the SeaArt SDK
+icon: triangle-exclamation
+---
+
+## Exception Hierarchy
+
+All SeaArt exceptions inherit from `SeaArtError`, which extends Python's base `Exception` class.
+
+```
+Exception
+└── SeaArtError
+    ├── APIError
+    │   ├── AuthError
+    │   │   ├── AccountNotFoundError
+    │   │   ├── InvalidPasswordError
+    │   │   ├── AuthTokenInvalidError
+    │   │   ├── AccountNotLoggedInError
+    │   │   └── AccountBlockedError
+    │   ├── AccountForbiddenError
+    │   ├── AccountCancelOncePerDayError
+    │   ├── TaskCompletionCannotBeCanceledError
+    │   ├── ParamsError
+    │   ├── ServerError
+    │   ├── ArtModelNoIsEmptyError
+    │   ├── ComfyuiApiNodeCannotBeCanceledError
+    │   ├── TaskHangLimitExceededError
+    │   ├── UsernameError
+    │   ├── TouristChatNumLimitError
+    │   ├── PromptHaveSensitiveWordsError
+    │   ├── FeatureRequiresPaymentError
+    │   ├── ImageCountExceedLimitError
+    │   ├── DoNotTurnOffPermissionToPublishWorksToTheCommunityError
+    │   ├── BalanceNotEnoughError
+    │   ├── OperationNotAllowedError
+    │   ├── ProcessingError
+    │   └── AccountNotMatchError
+    ├── MissingDataError
+    ├── TaskTimeoutError (also inherits from TimeoutError)
+    ├── InvalidRequestError (also inherits from ValueError)
+    └── StreamInterruptedError
+```
+
+---
+
+## Base Exceptions
+
+### SeaArtError
+
+```python
+class SeaArtError(Exception):
+    """Base exception for all SeaArt client errors."""
+```
+
+Base class for all exceptions raised by the SeaArt SDK. Catch this to handle any SeaArt-related error.
+
+**Example:**
+```python
+from seaart import SeaArt, SeaArtError
+
+client = SeaArt()
+
+try:
+    await client.characters.chat(character_id, "Hello")
+except SeaArtError as e:
+    print(f"SeaArt error: {e}")
+```
+
+---
+
+### APIError
+
+```python
+class APIError(SeaArtError):
+    """Generic API error raised for HTTP or logic failures."""
+    
+    def __init__(
+        self,
+        status: int,
+        body: bytes,
+        *,
+        code: int | None = None,
+        msg: str | None = None,
+    )
+```
+
+Generic API error raised for HTTP or logic failures.
+
+**Attributes:**
+- `http_status` (int): Raw HTTP status code
+- `code` (int | None): Optional API error code
+- `msg` (str | None): Optional message returned by the API
+- `body` (bytes): Raw response body as bytes
+
+**Example:**
+```python
+from seaart import SeaArt, APIError
+
+try:
+    await client.images.create(prompt="test")
+except APIError as e:
+    print(f"HTTP {e.http_status}")
+    print(f"Error code: {e.code}")
+    print(f"Message: {e.msg}")
+```
+
+---
+
+## Authentication Errors
+
+### AuthError
+
+```python
+class AuthError(APIError):
+    """Base class for authentication-related API errors."""
+```
+
+Base class for all authentication-related errors.
+
+---
+
+### AccountNotFoundError
+
+```python
+class AccountNotFoundError(AuthError):
+    """Raised when the specified account does not exist."""
+```
+
+**When raised:** During login or account operations when the account doesn't exist.
+
+**Example:**
+```python
+from seaart import SeaArt, AccountNotFoundError
+
+try:
+    await client.auth.login(email="nonexistent@example.com", password="pass")
+except AccountNotFoundError:
+    print("Account not found. Please check the email address.")
+```
+
+---
+
+### InvalidPasswordError
+
+```python
+class InvalidPasswordError(AuthError):
+    """Raised when an incorrect password is provided."""
+```
+
+**When raised:** During login when the password is incorrect.
+
+**Example:**
+```python
+from seaart import SeaArt, InvalidPasswordError
+
+try:
+    await client.auth.login(email="user@example.com", password="wrong")
+except InvalidPasswordError:
+    print("Incorrect password. Please try again.")
+```
+
+---
+
+### AuthTokenInvalidError
+
+```python
+class AuthTokenInvalidError(AuthError):
+    """Raised when an authentication token is missing or invalid."""
+```
+
+**When raised:** When making authenticated requests with an invalid or expired token.
+
+**Example:**
+```python
+from seaart import SeaArt, AuthTokenInvalidError
+
+try:
+    await client.account.info()
+except AuthTokenInvalidError:
+    print("Token expired or invalid. Please log in again.")
+    await client.auth.login(email=email, password=password)
+```
+
+---
+
+### AccountNotLoggedInError
+
+```python
+class AccountNotLoggedInError(AuthError):
+    """Raised when an account is not logged in."""
+```
+
+**When raised:** When attempting operations that require authentication without being logged in.
+
+---
+
+### AccountBlockedError
+
+```python
+class AccountBlockedError(AuthError):
+    """Raised when an account is blocked."""
+```
+
+**When raised:** When attempting to use a blocked account.
+
+---
+
+## Task & Operation Errors
+
+### TaskTimeoutError
+
+```python
+class TaskTimeoutError(SeaArtError, TimeoutError):
+    """Raised when a task exceeds the allowed time limit."""
+```
+
+**When raised:** When waiting for a task to complete exceeds the specified timeout.
+
+**Example:**
+```python
+from seaart import SeaArt, TaskTimeoutError
+
+try:
+    # Wait for task with 60 second timeout
+    result = await client.images.create_and_wait(
+        prompt="A beautiful landscape",
+        timeout=60
+    )
+except TaskTimeoutError:
+    print("Task took too long to complete")
+```
+
+---
+
+### TaskCompletionCannotBeCanceledError
+
+```python
+class TaskCompletionCannotBeCanceledError(APIError):
+    """Raised when a task completion cannot be canceled."""
+```
+
+**When raised:** When attempting to cancel a task that has already completed.
+
+---
+
+### TaskHangLimitExceededError
+
+```python
+class TaskHangLimitExceededError(APIError):
+    """Raised when a task hang limit is exceeded."""
+```
+
+**When raised:** When a task has been hanging for too long.
+
+---
+
+### ComfyuiApiNodeCannotBeCanceledError
+
+```python
+class ComfyuiApiNodeCannotBeCanceledError(APIError):
+    """Raised when a ComfyUI API node cannot be canceled."""
+```
+
+**When raised:** When attempting to cancel a ComfyUI workflow node that cannot be canceled.
+
+---
+
+## Validation & Request Errors
+
+### InvalidRequestError
+
+```python
+class InvalidRequestError(SeaArtError, ValueError):
+    """Raised when a request cannot be built due to invalid/missing parameters."""
+```
+
+**When raised:** Before making an API request when required parameters are missing or invalid.
+
+**Example:**
+```python
+from seaart import SeaArt, InvalidRequestError
+
+try:
+    # Missing required parameter
+    await client.images.create(prompt="")  # Empty prompt
+except InvalidRequestError as e:
+    print(f"Invalid request: {e}")
+```
+
+---
+
+### ParamsError
+
+```python
+class ParamsError(APIError):
+    """Raised when the parameters are invalid."""
+```
+
+**When raised:** When the API rejects request parameters as invalid.
+
+---
+
+### PromptHaveSensitiveWordsError
+
+```python
+class PromptHaveSensitiveWordsError(APIError):
+    """Raised when the prompt contains sensitive words."""
+```
+
+**When raised:** When generating images or chatting with characters using prompts that contain prohibited content.
+
+**Example:**
+```python
+from seaart import SeaArt, PromptHaveSensitiveWordsError
+
+try:
+    await client.images.create(prompt="inappropriate content...")
+except PromptHaveSensitiveWordsError:
+    print("Prompt contains sensitive words. Please modify and try again.")
+```
+
+---
+
+### ImageCountExceedLimitError
+
+```python
+class ImageCountExceedLimitError(APIError):
+    """Raised when the number of images in a request exceeds the allowed limit."""
+```
+
+**When raised:** When requesting to generate more images than allowed.
+
+---
+
+## Account & Permission Errors
+
+### AccountForbiddenError
+
+```python
+class AccountForbiddenError(APIError):
+    """Raised when an account is forbidden from performing an action."""
+```
+
+**When raised:** When attempting an operation that the account doesn't have permission to perform.
+
+---
+
+### AccountCancelOncePerDayError
+
+```python
+class AccountCancelOncePerDayError(APIError):
+    """Raised when an account cancellation is attempted more than once per day."""
+```
+
+**When raised:** When attempting to cancel an account operation more than once per day.
+
+---
+
+### AccountNotMatchError
+
+```python
+class AccountNotMatchError(APIError):
+    """Raised when it does not apply to a specific account."""
+```
+
+**When raised:** When an operation doesn't apply to the current account.
+
+---
+
+### UsernameError
+
+```python
+class UsernameError(APIError):
+    """Raised when the provided username is invalid."""
+```
+
+**When raised:** When attempting to set or use an invalid username.
+
+---
+
+## Payment & Quota Errors
+
+### BalanceNotEnoughError
+
+```python
+class BalanceNotEnoughError(APIError):
+    """Raised when the account balance is insufficient to perform an action."""
+```
+
+**When raised:** When attempting an operation that requires credits but the account balance is too low.
+
+**Example:**
+```python
+from seaart import SeaArt, BalanceNotEnoughError
+
+try:
+    await client.images.create(prompt="A beautiful sunset")
+except BalanceNotEnoughError:
+    print("Insufficient credits. Please top up your account.")
+```
+
+---
+
+### FeatureRequiresPaymentError
+
+```python
+class FeatureRequiresPaymentError(APIError):
+    """Raised when a requested feature requires payment."""
+```
+
+**When raised:** When attempting to use a premium feature without a subscription.
+
+**Example:**
+```python
+from seaart import SeaArt, FeatureRequiresPaymentError
+
+try:
+    await client.images.create(prompt="test", advanced_feature=True)
+except FeatureRequiresPaymentError:
+    print("This feature requires a premium subscription.")
+```
+
+---
+
+### TouristChatNumLimitError
+
+```python
+class TouristChatNumLimitError(APIError):
+    """Raised when the tourist chat number limit is exceeded."""
+```
+
+**When raised:** When anonymous/guest users exceed their chat message limit.
+
+---
+
+### DoNotTurnOffPermissionToPublishWorksToTheCommunityError
+
+```python
+class DoNotTurnOffPermissionToPublishWorksToTheCommunityError(APIError):
+    """Raised when attempting to turn off the permission to publish works
+    to the community if you don't have the subscription."""
+```
+
+**When raised:** When attempting to disable community publishing without the required subscription.
+
+---
+
+## Server & Processing Errors
+
+### ServerError
+
+```python
+class ServerError(APIError):
+    """Raised when the server encounters an internal error."""
+```
+
+**When raised:** When the SeaArt API experiences an internal server error.
+
+**Example:**
+```python
+from seaart import SeaArt, ServerError
+import asyncio
+
+async def retry_on_server_error():
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            return await client.images.create(prompt="test")
+        except ServerError:
+            if attempt < max_retries - 1:
+                await asyncio.sleep(2 ** attempt)  # Exponential backoff
+            else:
+                raise
+```
+
+---
+
+### ProcessingError
+
+```python
+class ProcessingError(APIError):
+    """Raised when the server fails to process the request."""
+```
+
+**When raised:** When the server cannot process the request due to an error.
+
+---
+
+### OperationNotAllowedError
+
+```python
+class OperationNotAllowedError(APIError):
+    """Raised when an attempted operation is not allowed."""
+```
+
+**When raised:** When attempting an operation that is not permitted.
+
+---
+
+### ArtModelNoIsEmptyError
+
+```python
+class ArtModelNoIsEmptyError(APIError):
+    """Raised when the art model is empty."""
+```
+
+**When raised:** When attempting to use an empty or missing art model.
+
+---
+
+## Data & Stream Errors
+
+### MissingDataError
+
+```python
+class MissingDataError(SeaArtError):
+    """Raised when APIEnvelope.value is accessed but data is None."""
+```
+
+**When raised:** When accessing API response data that is unexpectedly `None`.
+
+---
+
+### StreamInterruptedError
+
+```python
+class StreamInterruptedError(SeaArtError):
+    """Raised when a streaming response ends without receiving an 'end' event.
+    
+    This typically indicates a network interruption or an unexpected server-side
+    termination of the stream before the final event was delivered.
+    """
+```
+
+**When raised:** During streaming operations when the connection is interrupted.
+
+**Example:**
+```python
+from seaart import SeaArt, StreamInterruptedError
+
+try:
+    async for chunk in client.characters.chat_stream(character_id, "Hello"):
+        print(chunk, end="", flush=True)
+except StreamInterruptedError:
+    print("\nStream interrupted. Please try again.")
+```
+
+---
+
+## Error Handling Best Practices
+
+### Basic Error Handling
+
+```python
+from seaart import SeaArt, SeaArtError, APIError
+
+client = SeaArt()
+
+try:
+    result = await client.images.create(prompt="A beautiful landscape")
+except SeaArtError as e:
+    print(f"Error: {e}")
+```
+
+### Specific Error Handling
+
+```python
+from seaart import (
+    SeaArt,
+    BalanceNotEnoughError,
+    PromptHaveSensitiveWordsError,
+    TaskTimeoutError,
+    ServerError,
+)
+
+try:
+    result = await client.images.create_and_wait(
+        prompt="A serene mountain landscape",
+        timeout=60
+    )
+except BalanceNotEnoughError:
+    print("Please add more credits to your account")
+except PromptHaveSensitiveWordsError:
+    print("Prompt contains sensitive content. Please revise.")
+except TaskTimeoutError:
+    print("Image generation took too long. Please try again.")
+except ServerError:
+    print("Server error. Please try again later.")
+```
+
+### Authentication Error Handling
+
+```python
+from seaart import (
+    SeaArt,
+    AccountNotFoundError,
+    InvalidPasswordError,
+    AuthTokenInvalidError,
+)
+
+async def login_with_retry(email: str, password: str):
+    client = SeaArt()
+    
+    try:
+        await client.auth.login(email=email, password=password)
+    except AccountNotFoundError:
+        print("Account not found. Please sign up first.")
+        return None
+    except InvalidPasswordError:
+        print("Invalid password. Please try again.")
+        return None
+    except AuthTokenInvalidError:
+        print("Authentication failed. Please contact support.")
+        return None
+    
+    return client
+```
+
+### Retry Logic with Exponential Backoff
+
+```python
+import asyncio
+from seaart import SeaArt, ServerError, TaskTimeoutError
+
+async def create_image_with_retry(prompt: str, max_retries: int = 3):
+    client = SeaArt()
+    
+    for attempt in range(max_retries):
+        try:
+            return await client.images.create_and_wait(prompt=prompt)
+        except ServerError:
+            if attempt < max_retries - 1:
+                wait_time = 2 ** attempt  # Exponential backoff: 1, 2, 4 seconds
+                print(f"Server error. Retrying in {wait_time}s...")
+                await asyncio.sleep(wait_time)
+            else:
+                print("Max retries reached. Please try again later.")
+                raise
+        except TaskTimeoutError:
+            print("Task timed out.")
+            raise
+```

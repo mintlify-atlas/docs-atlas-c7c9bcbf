@@ -1,0 +1,327 @@
+---
+title: Image Generation
+description: Generate images from text, transform existing images, upscale, and remove backgrounds
+---
+
+The SeaArt SDK provides comprehensive image generation capabilities including text-to-image, image-to-image transformation, upscaling, and background removal.
+
+<Note>
+All generation methods return a `TaskEnvelope` with a `.wait()` method for polling. Call `envelope.wait(timeout=120)` to block until the task completes.
+</Note>
+
+## Cost Estimation
+
+Check how many coins a generation will cost before running it:
+
+```python
+from seaart import SyncClient
+from seaart.helpers import extract_model_link
+
+MODEL_URL = "https://www.seaart.ai/create/image?id=cu8d8ble878c738hejd0"
+model = extract_model_link(MODEL_URL)
+
+with SyncClient() as client:
+    client.auth.login(
+        email="your-email@example.com",
+        password="your-password",
+    )
+
+    est = client.images.estimate(
+        prompt="a serene mountain landscape at sunset, oil painting",
+        model_no=model.model_no,
+        model_ver_no=model.model_ver_no,  # Optional, resolved from cache if omitted
+    )
+    print(f"Estimated cost: {est.value.calculate_coins} coins")
+```
+
+## Text-to-Image
+
+Generate images from text prompts.
+
+### Single Image
+
+<Steps>
+  <Step title="Extract Model Information">
+    Parse the model URL to get the model number:
+
+    ```python
+    from seaart.helpers import extract_model_link
+
+    MODEL_URL = "https://www.seaart.ai/create/image?id=cu8d8ble878c738hejd0&model_ver_no=f1ebdcc036b767a672db420eb367688d"
+    model = extract_model_link(MODEL_URL)
+    ```
+  </Step>
+
+  <Step title="Submit Generation Task">
+    Create a text-to-image task:
+
+    ```python
+    envelope = client.images.text_to_img(
+        prompt="a serene mountain landscape at sunset, oil painting",
+        model_no=model.model_no,
+        model_ver_no=model.model_ver_no,
+    )
+    print(f"Task submitted: {envelope.value.id}")
+    ```
+  </Step>
+
+  <Step title="Wait for Results">
+    Poll until completion:
+
+    ```python
+    # .wait() polls until the task finishes and returns a TaskItem
+    item = envelope.wait(timeout=120)
+    print(f"Image URL: {item.image_url}")
+    ```
+  </Step>
+</Steps>
+
+### Batch Generation
+
+Generate multiple images in a single task:
+
+```python
+envelope = client.images.text_to_img(
+    prompt="cyberpunk cityscape, neon lights, rain",
+    model_no=model.model_no,
+    num_images=2,  # Generate 2 images
+)
+item = envelope.wait(timeout=180)
+
+# .image_urls contains all generated images
+for url in item.image_urls:
+    print(f"Image: {url}")
+```
+
+## Image-to-Image
+
+Transform an existing image with a text prompt.
+
+```python
+# Upload a local image first
+uploaded = client.images.upload(path="input.jpg")
+image_url = uploaded.value.url
+
+envelope = client.images.img_to_img(
+    prompt="same scene but in watercolor style",
+    model_no=model.model_no,
+    image_url=image_url,
+    strength=0.45,  # How much to transform (0.0-1.0)
+)
+item = envelope.wait(timeout=120)
+print(f"Result: {item.image_url}")
+```
+
+### Strength Parameter
+
+The `strength` parameter controls how much the output differs from the input:
+
+| Range | Effect |
+|-------|--------|
+| `0.1 - 0.3` | Preserve more of the original image |
+| `0.4 - 0.6` | Balanced transformation |
+| `0.7 - 1.0` | Greater creative freedom |
+
+## Upscaling
+
+Upscale generated images to higher resolution:
+
+```python
+# Generate an image first
+envelope = client.images.text_to_img(
+    prompt="a detailed portrait of a knight",
+    model_no=model.model_no,
+)
+item = envelope.wait(timeout=120)
+
+# Upscale it
+upscale_envelope = client.images.upscale(image_url=item.image_url)
+upscaled = upscale_envelope.wait(timeout=120)
+print(f"Upscaled: {upscaled.image_url}")
+```
+
+## Background Removal
+
+Remove backgrounds from images:
+
+```python
+# Upload an image
+uploaded = client.images.upload(path="photo.jpg")
+
+# Remove background
+envelope = client.images.remove_bg(image_url=uploaded.value.url)
+item = envelope.wait(timeout=60)
+print(f"Result: {item.image_url}")
+```
+
+## Task Polling
+
+Understand how task polling works with `TaskEnvelope`.
+
+### Using .wait()
+
+The recommended approach for most use cases:
+
+<CodeGroup>
+```python Default Timeout (5 minutes)
+item = envelope.wait()
+print(item.image_url)
+```
+
+```python Custom Timeout
+item = envelope.wait(timeout=120)  # Wait up to 2 minutes
+```
+
+```python Wait Indefinitely
+item = envelope.wait(timeout=None)  # No timeout
+```
+
+```python Custom Interval
+item = envelope.wait(
+    interval=1.0,  # Poll every 1 second instead of 2
+    timeout=120
+)
+```
+</CodeGroup>
+
+### Manual Progress Checking
+
+For custom polling logic or progress bars:
+
+```python
+import time
+
+envelope = client.images.text_to_img(
+    prompt="a magical forest",
+    model_no=model.model_no,
+)
+
+# Manual polling loop
+while True:
+    progress = envelope.progress()
+    percent = progress.value.percent
+    is_done = progress.value.is_done
+
+    print(f"Progress: {percent}%")
+
+    if is_done:
+        item = progress.value
+        print(f"Complete: {item.image_url}")
+        break
+
+    time.sleep(2)
+```
+
+<Warning>
+If a task does not complete within the timeout period, a `TaskTimeoutError` will be raised.
+</Warning>
+
+## Artwork Details
+
+Fetch detailed metadata and download URLs for generated images:
+
+```python
+envelope = client.images.text_to_img(
+    prompt="a fox in autumn forest",
+    model_no=model.model_no,
+)
+item = envelope.wait(timeout=120)
+
+# Fetch detailed artwork metadata
+details = client.images.detail(item.task_id)
+print(f"Model used: {details.value.art_model_name}")
+for uri in details.value.img_uris or []:
+    print(f"  {uri.url}")
+
+# Get a direct download link
+download = client.images.get_download_url(item.image_url)
+print(f"Download: {download.value.url}")
+```
+
+## File Upload
+
+Upload local files to use as input:
+
+```python
+# Upload from file path
+uploaded = client.images.upload(path="input.jpg")
+image_url = uploaded.value.url
+
+# Use the uploaded image
+envelope = client.images.img_to_img(
+    prompt="transform this",
+    model_no=model.model_no,
+    image_url=image_url,
+)
+```
+
+## Async Support
+
+All methods have async equivalents:
+
+```python
+from seaart import AsyncClient
+
+async with AsyncClient() as client:
+    await client.auth.login(
+        email="your-email@example.com",
+        password="your-password",
+    )
+
+    envelope = await client.images.text_to_img(
+        prompt="a serene landscape",
+        model_no=model.model_no,
+    )
+
+    # Async wait
+    item = await envelope.wait(timeout=120)
+    print(item.image_url)
+```
+
+## Complete Example
+
+Putting it all together:
+
+```python
+from seaart import SyncClient
+from seaart.helpers import extract_model_link
+import os
+
+MODEL_URL = "https://www.seaart.ai/create/image?id=cu8d8ble878c738hejd0"
+model = extract_model_link(MODEL_URL)
+
+with SyncClient() as client:
+    client.auth.login(
+        email=os.environ["SEAART_EMAIL"],
+        password=os.environ["SEAART_PASSWORD"],
+    )
+
+    # Generate
+    envelope = client.images.text_to_img(
+        prompt="a mystical dragon in a mountain cave",
+        model_no=model.model_no,
+        num_images=1,
+    )
+    item = envelope.wait(timeout=120)
+    print(f"Generated: {item.image_url}")
+
+    # Upscale
+    upscale_env = client.images.upscale(image_url=item.image_url)
+    upscaled = upscale_env.wait(timeout=120)
+    print(f"Upscaled: {upscaled.image_url}")
+
+    # Get download URL
+    download = client.images.get_download_url(upscaled.image_url)
+    print(f"Download: {download.value.url}")
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Search Models" icon="magnifying-glass" href="/guides/search">
+    Find models by name or category
+  </Card>
+  <Card title="Character Chat" icon="messages" href="/guides/character-chat">
+    Chat with AI characters
+  </Card>
+</CardGroup>

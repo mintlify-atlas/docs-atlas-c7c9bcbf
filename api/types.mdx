@@ -1,0 +1,312 @@
+---
+title: Types
+description: Core type definitions for the SeaArt SDK
+icon: brackets-curly
+---
+
+## Enums
+
+### AppId
+
+Platform identifier forwarded in every request via the `x-app-id` header.
+
+```python
+from seaart import AppId
+
+class AppId(StrEnum):
+    WEB = "web_global_seaart"
+    APP = "app_global_seaart"
+    PHONE = "phone_global_seaart"
+```
+
+**Values:**
+- `WEB` - Web platform identifier
+- `APP` - Mobile app identifier
+- `PHONE` - Phone platform identifier
+
+**Example:**
+```python
+from seaart import SeaArt, AppId
+
+client = SeaArt(app_id=AppId.WEB)
+```
+
+---
+
+### Role
+
+Message role in a conversation history.
+
+```python
+from seaart import Role
+
+class Role(IntEnum):
+    USER = 1
+    ASSISTANT = 2
+```
+
+**Values:**
+- `USER = 1` - User message
+- `ASSISTANT = 2` - AI assistant message
+
+**Example:**
+```python
+from seaart import Role, ChatHistory
+
+history = ChatHistory()
+history.add("Hello!", role=Role.USER)
+history.add("Hi there!", role=Role.ASSISTANT)
+```
+
+---
+
+### ImageSize
+
+Aspect ratio preset for image generation.
+
+Pre-defined presets cover common portrait, landscape, and square ratios. For exact pixel dimensions use `ImageSize.custom()`.
+
+```python
+from seaart import ImageSize
+
+class ImageSize(StrEnum):
+    # Portrait ratios
+    PORTRAIT_1_2 = "1:2"
+    PORTRAIT_2_3 = "2:3"
+    PORTRAIT_3_4 = "3:4"
+    PORTRAIT_4_5 = "4:5"
+    PORTRAIT_9_16 = "9:16"
+    
+    # Landscape ratios
+    LANDSCAPE_2_1 = "2:1"
+    LANDSCAPE_3_2 = "3:2"
+    LANDSCAPE_4_3 = "4:3"
+    LANDSCAPE_5_4 = "5:4"
+    LANDSCAPE_16_9 = "16:9"
+    
+    # Square
+    SQUARE = "1:1"
+```
+
+#### Properties
+
+##### width
+
+```python
+@property
+def width(self) -> int
+```
+
+Width component of the aspect ratio.
+
+##### height
+
+```python
+@property
+def height(self) -> int
+```
+
+Height component of the aspect ratio.
+
+##### ratio
+
+```python
+@property
+def ratio(self) -> str
+```
+
+Aspect ratio string in `"W:H"` format.
+
+##### is_custom
+
+```python
+@property
+def is_custom(self) -> bool
+```
+
+`True` when this instance was created with `custom()` rather than a preset.
+
+#### Methods
+
+##### custom()
+
+```python
+@classmethod
+def custom(cls, width: int, height: int) -> ImageSize
+```
+
+Create an `ImageSize` from exact pixel dimensions.
+
+**Parameters:**
+- `width` (int): Output width in pixels (minimum 384)
+- `height` (int): Output height in pixels (minimum 384)
+
+**Returns:**
+- `ImageSize`: An `ImageSize` with value `"width:height"`
+
+**Raises:**
+- `ValueError`: If `width` or `height` is less than 384
+
+**Example:**
+```python
+from seaart import ImageSize
+
+# Use a preset
+size = ImageSize.PORTRAIT_9_16
+print(f"{size.width}x{size.height}")  # 9x16
+
+# Create a custom size
+custom = ImageSize.custom(1024, 768)
+print(custom.is_custom)  # True
+print(custom.ratio)  # "1024:768"
+```
+
+---
+
+## Type Aliases
+
+### HistoryInput
+
+```python
+HistoryInput: TypeAlias = HistoryItem | Iterable[HistoryItem] | None
+```
+
+Flexible input type for conversation history. Accepts:
+- A single `HistoryItem`
+- An iterable of `HistoryItem` objects
+- `None` (no history)
+
+**Example:**
+```python
+from seaart import ChatHistory, Role
+
+# Single item
+history: HistoryInput = (Role.USER, "Hello!")
+
+# Multiple items
+history: HistoryInput = [
+    (Role.USER, "Hello!"),
+    (Role.ASSISTANT, "Hi there!")
+]
+
+# ChatHistory instance
+history: HistoryInput = ChatHistory().user("Hello!").ai("Hi there!")
+```
+
+---
+
+## Data Models
+
+### HistoryMessage
+
+Represents a single message in conversation history.
+
+```python
+class HistoryMessage(BaseModel):
+    role: int
+    content: str
+    msg_id: str = ""
+```
+
+**Attributes:**
+- `role` (int): Message role (`1` for user, `2` for assistant)
+- `content` (str): Message text content
+- `msg_id` (str): Optional message identifier (default: `""`)
+
+**Example:**
+```python
+from seaart.types import HistoryMessage
+
+msg = HistoryMessage(
+    role=1,  # USER
+    content="What's the weather like?",
+    msg_id="msg_123"
+)
+```
+
+---
+
+### Message
+
+Flexible message type for API requests.
+
+```python
+class Message(BaseModel):
+    role: str
+    content: str | MessageContent
+```
+
+**Attributes:**
+- `role` (str): Message role as string
+- `content` (str | MessageContent): Message content, either plain text or structured content
+
+---
+
+### HomeSet
+
+User profile home settings.
+
+```python
+class HomeSet(BaseModel):
+    sex: int | None = None
+    intro: str | None = None
+    notice: str | None = None
+    background_img: str | None = None
+    show_sex: int | None = None
+```
+
+**Attributes:**
+- `sex` (int | None): Gender setting
+- `intro` (str | None): Profile introduction text
+- `notice` (str | None): Profile notice message
+- `background_img` (str | None): Background image URL
+- `show_sex` (int | None): Whether to display gender
+
+**Example:**
+```python
+from seaart.types import HomeSet
+
+home = HomeSet(
+    intro="AI art enthusiast",
+    background_img="https://example.com/bg.jpg"
+)
+
+await client.account.edit(home_set=home)
+```
+
+---
+
+### OverviewSettings
+
+Visibility settings for profile overview sections.
+
+```python
+class OverviewSettings(BaseModel):
+    work: bool | None = None
+    model: bool | None = None
+    digital_human: bool | None = None
+    post: bool | None = None
+    canvas: bool | None = None
+    workflow_aiapp: bool | None = None
+    ai_audio: bool | None = None
+```
+
+**Attributes:**
+- `work` (bool | None): Show works section
+- `model` (bool | None): Show models section
+- `digital_human` (bool | None): Show digital humans section
+- `post` (bool | None): Show posts section
+- `canvas` (bool | None): Show canvas section
+- `workflow_aiapp` (bool | None): Show workflow/AI app section
+- `ai_audio` (bool | None): Show AI audio section
+
+**Example:**
+```python
+from seaart.types import OverviewSettings
+
+settings = OverviewSettings(
+    work=True,
+    model=True,
+    digital_human=False
+)
+```

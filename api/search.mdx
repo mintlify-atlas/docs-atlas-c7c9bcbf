@@ -1,0 +1,597 @@
+---
+title: "Search"
+description: "Search the SeaArt platform for characters, models, works, and more"
+---
+
+## Overview
+
+The `SearchResource` provides methods to search across various content types on the SeaArt platform, including characters, models, works, AI apps, posts, AI videos, and workflows.
+
+Accessible via `client.search` (sync) or `client.search` (async).
+
+## Methods
+
+### all()
+
+Search across all content types with flexible filtering options.
+
+<ParamField path="query" type="str" required>
+  Search query string
+</ParamField>
+
+<ParamField path="query_en" type="str" default="">
+  English translation of the query for bilingual search
+</ParamField>
+
+<ParamField path="query_type" type="int" default="99">
+  Content type filter:
+  - `99` - All types (default)
+  - `2` - Models
+  - `4` - Works/Posts
+  - `9` - Characters
+  - `13` - Workflows
+  - `14` - AI apps
+  - `15` - AI videos
+</ParamField>
+
+<ParamField path="offset" type="int" default="0">
+  Pagination offset for retrieving results beyond the first page
+</ParamField>
+
+<ParamField path="order_by" type="Literal['hot', 'new'] | None" default="None">
+  Sort order - `"hot"` for popular results, `"new"` for recent results. `None` uses server default
+</ParamField>
+
+<ParamField path="page" type="int" default="1">
+  Page number (1-based indexing)
+</ParamField>
+
+<ParamField path="page_size" type="int" default="35">
+  Number of results per page
+</ParamField>
+
+<ParamField path="scene" type="str" default="'square'">
+  Scene context forwarded to the API
+</ParamField>
+
+<ParamField path="url" type="str" default="''">
+  URL context forwarded to the API
+</ParamField>
+
+<ParamField path="base_models" type="list[str] | None" default="None">
+  Filter results by base model names (e.g., `["SDXL", "SD1.5"]`)
+</ParamField>
+
+<ParamField path="model_types" type="list[Any] | None" default="None">
+  Filter results by model types
+</ParamField>
+
+<ParamField path="ss" type="int | None" default="None">
+  Additional filter flag forwarded to the API
+</ParamField>
+
+<ResponseField name="return" type="APIEnvelope[SearchResult]">
+  API envelope containing search results
+  
+  <Expandable title="SearchResult fields">
+    <ResponseField name="items" type="list[Item]">
+      List of search result items
+    </ResponseField>
+    
+    <ResponseField name="has_more" type="bool">
+      Whether more results are available
+    </ResponseField>
+    
+    <ResponseField name="offset" type="str">
+      Offset value to use for the next page
+    </ResponseField>
+    
+    <ResponseField name="search_word_en" type="str">
+      English version of the search query
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<CodeGroup>
+```python Sync
+from seaart import SyncClient
+
+with SyncClient() as client:
+    client.auth.login(email="user@example.com", password="password")
+    
+    # Search all content types
+    result = client.search.all("fantasy portrait")
+    
+    # Access results
+    for item in result.value.items:
+        print(f"{item.title}: {item.cover.url}")
+    
+    # Check for more results
+    if result.value.has_more:
+        # Load next page
+        next_page = client.search.all(
+            "fantasy portrait",
+            offset=int(result.value.offset)
+        )
+```
+
+```python Async
+from seaart import AsyncClient
+
+async with AsyncClient() as client:
+    await client.auth.login(email="user@example.com", password="password")
+    
+    # Search all content types
+    result = await client.search.all("fantasy portrait")
+    
+    # Access results
+    for item in result.value.items:
+        print(f"{item.title}: {item.cover.url}")
+```
+</CodeGroup>
+
+---
+
+### works()
+
+Search for community works. Shortcut for `all()` with `query_type=4`.
+
+<ParamField path="query" type="str" required>
+  Search query string
+</ParamField>
+
+<ParamField path="query_en" type="str" default="">
+  English translation of the query
+</ParamField>
+
+<ParamField path="offset" type="int" default="0">
+  Pagination offset
+</ParamField>
+
+<ParamField path="page" type="int" default="1">
+  Page number (1-based)
+</ParamField>
+
+<ParamField path="page_size" type="int" default="35">
+  Results per page
+</ParamField>
+
+<ParamField path="scene" type="str" default="'square'">
+  Scene context
+</ParamField>
+
+<ParamField path="url" type="str" default="''">
+  URL context
+</ParamField>
+
+<ParamField path="ss" type="int | None" default="None">
+  Additional filter flag
+</ParamField>
+
+<ResponseField name="return" type="APIEnvelope[SearchResult]">
+  API envelope containing work search results
+</ResponseField>
+
+```python
+result = client.search.works("cyberpunk city")
+for work in result.value.items:
+    print(work.title)
+```
+
+---
+
+### models()
+
+Search for models. Shortcut for `all()` with `query_type=2`.
+
+<ParamField path="query" type="str" required>
+  Search query string
+</ParamField>
+
+<ParamField path="query_en" type="str" default="">
+  English translation of the query
+</ParamField>
+
+<ParamField path="offset" type="int" default="0">
+  Pagination offset
+</ParamField>
+
+<ParamField path="order_by" type="Literal['hot', 'new'] | None" default="None">
+  Sort order - `"hot"` or `"new"`
+</ParamField>
+
+<ParamField path="page" type="int" default="1">
+  Page number (1-based)
+</ParamField>
+
+<ParamField path="page_size" type="int" default="35">
+  Results per page
+</ParamField>
+
+<ParamField path="scene" type="str" default="'square'">
+  Scene context
+</ParamField>
+
+<ParamField path="url" type="str" default="''">
+  URL context
+</ParamField>
+
+<ParamField path="base_models" type="list[str] | None" default="None">
+  Filter by base model names
+</ParamField>
+
+<ParamField path="model_types" type="list[Any] | None" default="None">
+  Filter by model types
+</ParamField>
+
+<ParamField path="ss" type="int | None" default="None">
+  Additional filter flag
+</ParamField>
+
+<ResponseField name="return" type="APIEnvelope[SearchResult]">
+  API envelope containing model search results
+</ResponseField>
+
+```python
+# Search for SDXL models
+result = client.search.models(
+    "anime style",
+    order_by="hot",
+    base_models=["SDXL"]
+)
+
+for model in result.value.items:
+    print(f"{model.title} - {model.stat.num_of_like} likes")
+```
+
+---
+
+### characters()
+
+Search for characters. Shortcut for `all()` with `query_type=9`.
+
+<ParamField path="query" type="str" required>
+  Search query string
+</ParamField>
+
+<ParamField path="query_en" type="str" default="">
+  English translation of the query
+</ParamField>
+
+<ParamField path="offset" type="int" default="0">
+  Pagination offset
+</ParamField>
+
+<ParamField path="order_by" type="Literal['hot', 'new'] | None" default="None">
+  Sort order - `"hot"` or `"new"`
+</ParamField>
+
+<ParamField path="page" type="int" default="1">
+  Page number (1-based)
+</ParamField>
+
+<ParamField path="page_size" type="int" default="35">
+  Results per page
+</ParamField>
+
+<ParamField path="scene" type="str" default="'square'">
+  Scene context
+</ParamField>
+
+<ParamField path="url" type="str" default="''">
+  URL context
+</ParamField>
+
+<ParamField path="ss" type="int | None" default="None">
+  Additional filter flag
+</ParamField>
+
+<ResponseField name="return" type="APIEnvelope[SearchResult]">
+  API envelope containing character search results
+</ResponseField>
+
+```python
+result = client.search.characters("anime girl", order_by="hot")
+for character in result.value.items:
+    print(f"{character.title} by {character.author.name}")
+```
+
+---
+
+### ai_apps()
+
+Search for AI apps. Shortcut for `all()` with `query_type=14`.
+
+<ParamField path="query" type="str" required>
+  Search query string
+</ParamField>
+
+<ParamField path="query_en" type="str" default="">
+  English translation of the query
+</ParamField>
+
+<ParamField path="offset" type="int" default="0">
+  Pagination offset
+</ParamField>
+
+<ParamField path="order_by" type="Literal['hot', 'new'] | None" default="None">
+  Sort order - `"hot"` or `"new"`
+</ParamField>
+
+<ParamField path="page" type="int" default="1">
+  Page number (1-based)
+</ParamField>
+
+<ParamField path="page_size" type="int" default="35">
+  Results per page
+</ParamField>
+
+<ParamField path="scene" type="str" default="'square'">
+  Scene context
+</ParamField>
+
+<ParamField path="url" type="str" default="''">
+  URL context
+</ParamField>
+
+<ParamField path="ss" type="int | None" default="None">
+  Additional filter flag
+</ParamField>
+
+<ResponseField name="return" type="APIEnvelope[SearchResult]">
+  API envelope containing AI app search results
+</ResponseField>
+
+```python
+result = client.search.ai_apps("image editor")
+for app in result.value.items:
+    print(app.title)
+```
+
+---
+
+### posts()
+
+Search for posts. Shortcut for `all()` with `query_type=4`.
+
+<ParamField path="query" type="str" required>
+  Search query string
+</ParamField>
+
+<ParamField path="query_en" type="str" default="">
+  English translation of the query
+</ParamField>
+
+<ParamField path="offset" type="int" default="0">
+  Pagination offset
+</ParamField>
+
+<ParamField path="order_by" type="Literal['hot', 'new'] | None" default="None">
+  Sort order - `"hot"` or `"new"`
+</ParamField>
+
+<ParamField path="page" type="int" default="1">
+  Page number (1-based)
+</ParamField>
+
+<ParamField path="page_size" type="int" default="35">
+  Results per page
+</ParamField>
+
+<ParamField path="scene" type="str" default="'square'">
+  Scene context
+</ParamField>
+
+<ParamField path="url" type="str" default="''">
+  URL context
+</ParamField>
+
+<ParamField path="ss" type="int | None" default="None">
+  Additional filter flag
+</ParamField>
+
+<ResponseField name="return" type="APIEnvelope[SearchResult]">
+  API envelope containing post search results
+</ResponseField>
+
+```python
+result = client.search.posts("tutorial")
+for post in result.value.items:
+    print(f"{post.title} - {post.stat.num_of_view} views")
+```
+
+---
+
+### ai_videos()
+
+Search for AI videos. Shortcut for `all()` with `query_type=15`.
+
+<ParamField path="query" type="str" required>
+  Search query string
+</ParamField>
+
+<ParamField path="query_en" type="str" default="">
+  English translation of the query
+</ParamField>
+
+<ParamField path="offset" type="int" default="0">
+  Pagination offset
+</ParamField>
+
+<ParamField path="order_by" type="Literal['hot', 'new'] | None" default="None">
+  Sort order - `"hot"` or `"new"`
+</ParamField>
+
+<ParamField path="page" type="int" default="1">
+  Page number (1-based)
+</ParamField>
+
+<ParamField path="page_size" type="int" default="35">
+  Results per page
+</ParamField>
+
+<ParamField path="scene" type="str" default="'square'">
+  Scene context
+</ParamField>
+
+<ParamField path="url" type="str" default="''">
+  URL context
+</ParamField>
+
+<ParamField path="ss" type="int | None" default="None">
+  Additional filter flag
+</ParamField>
+
+<ResponseField name="return" type="APIEnvelope[SearchResult]">
+  API envelope containing AI video search results
+</ResponseField>
+
+```python
+result = client.search.ai_videos("animation", order_by="new")
+for video in result.value.items:
+    print(f"{video.title} - {video.cover.video}")
+```
+
+---
+
+### workflows()
+
+Search for workflows. Shortcut for `all()` with `query_type=13`.
+
+<ParamField path="query" type="str" required>
+  Search query string
+</ParamField>
+
+<ParamField path="query_en" type="str" default="">
+  English translation of the query
+</ParamField>
+
+<ParamField path="offset" type="int" default="0">
+  Pagination offset
+</ParamField>
+
+<ParamField path="order_by" type="Literal['hot', 'new'] | None" default="None">
+  Sort order - `"hot"` or `"new"`
+</ParamField>
+
+<ParamField path="page" type="int" default="1">
+  Page number (1-based)
+</ParamField>
+
+<ParamField path="page_size" type="int" default="35">
+  Results per page
+</ParamField>
+
+<ParamField path="scene" type="str" default="'square'">
+  Scene context
+</ParamField>
+
+<ParamField path="url" type="str" default="''">
+  URL context
+</ParamField>
+
+<ParamField path="ss" type="int | None" default="None">
+  Additional filter flag
+</ParamField>
+
+<ResponseField name="return" type="APIEnvelope[SearchResult]">
+  API envelope containing workflow search results
+</ResponseField>
+
+```python
+result = client.search.workflows("image enhancement")
+for workflow in result.value.items:
+    print(workflow.title)
+```
+
+## Pagination
+
+All search methods support pagination. Use the `offset` and `has_more` fields to navigate through results:
+
+```python
+from seaart import SyncClient
+
+with SyncClient() as client:
+    client.auth.login(email="user@example.com", password="password")
+    
+    all_results = []
+    offset = 0
+    
+    while True:
+        result = client.search.models(
+            "anime",
+            offset=offset,
+            page_size=50
+        )
+        
+        all_results.extend(result.value.items)
+        
+        if not result.value.has_more:
+            break
+            
+        offset = int(result.value.offset)
+    
+    print(f"Found {len(all_results)} total results")
+```
+
+## Type Reference
+
+### SearchResult
+
+<ResponseField name="items" type="list[Item]">
+  List of search result items
+</ResponseField>
+
+<ResponseField name="has_more" type="bool">
+  Whether more results are available on the next page
+</ResponseField>
+
+<ResponseField name="offset" type="str">
+  Offset value to use for the next page request
+</ResponseField>
+
+<ResponseField name="search_word_en" type="str">
+  English translation of the search query
+</ResponseField>
+
+<ResponseField name="first" type="Item | None">
+  Convenience property that returns the first item or `None` if empty
+</ResponseField>
+
+### Item
+
+<ResponseField name="id" type="str">
+  Unique identifier for the item
+</ResponseField>
+
+<ResponseField name="obj_type" type="int">
+  Object type code
+</ResponseField>
+
+<ResponseField name="title" type="str | None">
+  Item title
+</ResponseField>
+
+<ResponseField name="description" type="str | None">
+  Item description
+</ResponseField>
+
+<ResponseField name="author" type="Author">
+  Author information (id, name, head, status, etc.)
+</ResponseField>
+
+<ResponseField name="cover" type="Cover">
+  Cover image information (url, width, height, video, nsfw)
+</ResponseField>
+
+<ResponseField name="stat" type="Stat">
+  Statistics (num_of_like, num_of_collection, num_of_task, num_of_view, rating, etc.)
+</ResponseField>
+
+<ResponseField name="create_at" type="int">
+  Creation timestamp
+</ResponseField>
+
+<ResponseField name="nsfw_level" type="int">
+  NSFW content level
+</ResponseField>

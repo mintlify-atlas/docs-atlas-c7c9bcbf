@@ -1,0 +1,294 @@
+---
+title: "Authentication"
+description: "Learn how to authenticate with the SeaArt API using email/password or tourist mode"
+---
+
+## Overview
+
+The SeaArt SDK provides two authentication methods:
+
+1. **Email/Password Login** - For registered users with full account access
+2. **Tourist Login** - For guest access without credentials
+
+Authentication is handled automatically by the client. Once you log in, the auth token is stored and included in all subsequent requests.
+
+## Email and Password Login
+
+Use the `login()` method to authenticate with your SeaArt account credentials:
+
+<CodeGroup>
+```python Sync
+from seaart import SyncClient
+
+client = SyncClient()
+
+# Log in with email and password
+session = client.auth.login("user@example.com", "your_password")
+
+# Token is automatically applied to the client
+print(f"Logged in with token: {session.value.token}")
+print(f"Account ID: {session.value.account.id}")
+
+# All subsequent requests are authenticated
+me = client.account.me()
+print(f"Username: {me.value.username}")
+```
+
+```python Async
+from seaart import AsyncClient
+import asyncio
+
+async def main():
+    client = AsyncClient()
+    
+    # Log in with email and password
+    session = await client.auth.login("user@example.com", "your_password")
+    
+    # Token is automatically applied to the client
+    print(f"Logged in with token: {session.value.token}")
+    print(f"Account ID: {session.value.account.id}")
+    
+    # All subsequent requests are authenticated
+    me = await client.account.me()
+    print(f"Username: {me.value.username}")
+    
+    await client.close()
+
+asyncio.run(main())
+```
+</CodeGroup>
+
+### Authentication Errors
+
+The `login()` method may raise several specific exceptions:
+
+- `AccountNotFoundError` - No account exists with that email
+- `InvalidPasswordError` - The password is incorrect
+- `AccountBlockedError` - The account has been blocked
+- `AuthError` - Generic authentication failure
+
+<CodeGroup>
+```python Sync
+from seaart import SyncClient
+from seaart.exceptions import (
+    AccountNotFoundError,
+    InvalidPasswordError,
+    AccountBlockedError,
+    AuthError,
+)
+
+client = SyncClient()
+
+try:
+    session = client.auth.login("user@example.com", "password")
+    print("Login successful!")
+except AccountNotFoundError:
+    print("No account found with that email")
+except InvalidPasswordError:
+    print("Incorrect password")
+except AccountBlockedError:
+    print("Your account has been blocked")
+except AuthError as e:
+    print(f"Authentication failed: {e}")
+```
+
+```python Async
+from seaart import AsyncClient
+from seaart.exceptions import (
+    AccountNotFoundError,
+    InvalidPasswordError,
+    AccountBlockedError,
+    AuthError,
+)
+import asyncio
+
+async def main():
+    client = AsyncClient()
+    
+    try:
+        session = await client.auth.login("user@example.com", "password")
+        print("Login successful!")
+    except AccountNotFoundError:
+        print("No account found with that email")
+    except InvalidPasswordError:
+        print("Incorrect password")
+    except AccountBlockedError:
+        print("Your account has been blocked")
+    except AuthError as e:
+        print(f"Authentication failed: {e}")
+    
+    await client.close()
+
+asyncio.run(main())
+```
+</CodeGroup>
+
+## Tourist (Guest) Login
+
+For quick access without an account, use the `login_as_tourist()` method:
+
+<CodeGroup>
+```python Sync
+from seaart import SyncClient
+
+client = SyncClient()
+
+# Log in as a guest
+session = client.auth.login_as_tourist()
+print(f"Guest token: {session.value.token}")
+
+# Optional: Provide a device ID for session persistence
+session = client.auth.login_as_tourist(device_id="my-device-123")
+```
+
+```python Async
+from seaart import AsyncClient
+import asyncio
+
+async def main():
+    client = AsyncClient()
+    
+    # Log in as a guest
+    session = await client.auth.login_as_tourist()
+    print(f"Guest token: {session.value.token}")
+    
+    # Optional: Provide a device ID for session persistence
+    session = await client.auth.login_as_tourist(device_id="my-device-123")
+    
+    await client.close()
+
+asyncio.run(main())
+```
+</CodeGroup>
+
+<Note>
+Tourist accounts have limited permissions and may not be able to access all features. Use email/password login for full account access.
+</Note>
+
+## Token-Based Authentication
+
+If you already have an authentication token, you can pass it directly to the client:
+
+```python
+from seaart import SyncClient
+
+# Initialize with existing token
+client = SyncClient(token="your_existing_token")
+
+# No need to call login() - the client is already authenticated
+me = client.account.me()
+print(f"Logged in as: {me.value.username}")
+```
+
+### Updating the Token
+
+You can update the token at any time using `set_token()`:
+
+```python
+client = SyncClient()
+
+# Set a new token
+client.set_token("new_token_here")
+
+# Clear the token (logout locally)
+client.set_token(None)
+```
+
+## Logging Out
+
+Use the `logout()` method to end your session and clear the token:
+
+<CodeGroup>
+```python Sync
+client.auth.logout()
+print("Logged out successfully")
+```
+
+```python Async
+await client.auth.logout()
+print("Logged out successfully")
+```
+</CodeGroup>
+
+<Warning>
+After logging out, you'll need to authenticate again before making any requests that require authentication.
+</Warning>
+
+## Password Reset
+
+To request a password reset email:
+
+<CodeGroup>
+```python Sync
+client.auth.forgot_password("user@example.com")
+print("Password reset email sent")
+```
+
+```python Async
+await client.auth.forgot_password("user@example.com")
+print("Password reset email sent")
+```
+</CodeGroup>
+
+## Security Best Practices
+
+<AccordionGroup>
+  <Accordion title="Store tokens securely">
+    Never hardcode tokens in your source code. Use environment variables or secure credential management:
+    
+    ```python
+    import os
+    from seaart import SyncClient
+    
+    token = os.getenv("SEAART_TOKEN")
+    client = SyncClient(token=token)
+    ```
+  </Accordion>
+  
+  <Accordion title="Don't commit credentials">
+    Add credentials files to `.gitignore` to prevent accidentally committing them:
+    
+    ```bash
+    # .gitignore
+    .env
+    credentials.json
+    *.secret
+    ```
+  </Accordion>
+  
+  <Accordion title="Use context managers">
+    Always use context managers (`with` statement) to ensure proper cleanup:
+    
+    ```python
+    with SyncClient(token="token") as client:
+        # Do work here
+        pass
+    # Client is automatically closed
+    ```
+  </Accordion>
+  
+  <Accordion title="Handle token expiration">
+    Catch `AuthTokenInvalidError` to detect expired tokens:
+    
+    ```python
+    from seaart.exceptions import AuthTokenInvalidError
+    
+    try:
+        data = client.account.me()
+    except AuthTokenInvalidError:
+        # Token expired, re-authenticate
+        session = client.auth.login(email, password)
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Error Handling" icon="triangle-exclamation" href="/concepts/error-handling">
+    Learn how to handle API errors and exceptions
+  </Card>
+  <Card title="Sync vs Async" icon="code-compare" href="/concepts/sync-vs-async">
+    Choose between synchronous and asynchronous clients
+  </Card>
+</CardGroup>

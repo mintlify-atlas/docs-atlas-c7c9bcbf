@@ -1,0 +1,489 @@
+---
+title: Helpers
+description: Utility functions and classes for working with SeaArt data
+icon: wrench
+---
+
+## Classes
+
+### ChatHistory
+
+Mutable, fluent builder for a character chat conversation history.
+
+Stores messages as `(role, content, msg_id)` tuples. All mutating methods return `self` to allow method chaining.
+
+```python
+from seaart import ChatHistory
+
+@dataclass
+class ChatHistory:
+    _items: list[HistoryItem]
+```
+
+#### Methods
+
+##### user()
+
+```python
+def user(self, text: str, msg_id: str = "") -> ChatHistory
+```
+
+Append a user message.
+
+**Parameters:**
+- `text` (str): Message content
+- `msg_id` (str): Optional message ID (default: `""`)
+
+**Returns:**
+- `ChatHistory`: `self` for chaining
+
+**Example:**
+```python
+history = ChatHistory()
+history.user("Hello, how are you?")
+```
+
+---
+
+##### ai()
+
+```python
+def ai(self, text: str, msg_id: str = "") -> ChatHistory
+```
+
+Append an assistant message.
+
+**Parameters:**
+- `text` (str): Message content
+- `msg_id` (str): Optional message ID (default: `""`)
+
+**Returns:**
+- `ChatHistory`: `self` for chaining
+
+**Example:**
+```python
+history = ChatHistory()
+history.ai("I'm doing great, thanks!")
+```
+
+---
+
+##### add()
+
+```python
+def add(
+    self,
+    source: str | CharacterChatCompletionResult | ChatHistory,
+    role: Role | None = None,
+    msg_id: str = "",
+) -> ChatHistory
+```
+
+Append one or more messages from a flexible source.
+
+**Parameters:**
+- `source` (str | CharacterChatCompletionResult | ChatHistory): 
+  - A plain string (requires `role`)
+  - A `CharacterChatCompletionResult` (appended as an assistant message)
+  - Another `ChatHistory` (all its items are merged)
+- `role` (Role | None): Required when `source` is a `str`; must be `Role.USER` or `Role.ASSISTANT`
+- `msg_id` (str): Optional message ID used when `source` is a `str`
+
+**Returns:**
+- `ChatHistory`: `self` for chaining
+
+**Raises:**
+- `ValueError`: If `source` is a `str` and `role` is `None` or not a valid `Role`
+
+**Example:**
+```python
+from seaart import ChatHistory, Role
+
+history = ChatHistory()
+
+# Add string with role
+history.add("Hello!", role=Role.USER)
+
+# Add from API response
+response = await client.characters.chat(character_id, "Tell me a joke")
+history.add(response)
+
+# Merge another history
+other_history = ChatHistory().user("Hi").ai("Hello")
+history.add(other_history)
+```
+
+---
+
+##### delete_last()
+
+```python
+def delete_last(self, n: int = 1) -> ChatHistory
+```
+
+Remove the last `n` messages.
+
+**Parameters:**
+- `n` (int): Number of messages to remove (default: `1`). Non-positive values are ignored.
+
+**Returns:**
+- `ChatHistory`: `self` for chaining
+
+**Example:**
+```python
+history = ChatHistory().user("Hi").ai("Hello").user("Bye")
+history.delete_last(2)  # Removes last 2 messages
+print(len(history))  # 1
+```
+
+---
+
+##### clear()
+
+```python
+def clear(self) -> ChatHistory
+```
+
+Remove all messages.
+
+**Returns:**
+- `ChatHistory`: `self` for chaining
+
+**Example:**
+```python
+history = ChatHistory().user("Hi").ai("Hello")
+history.clear()
+print(len(history))  # 0
+```
+
+---
+
+##### copy()
+
+```python
+def copy(self) -> ChatHistory
+```
+
+Return a shallow copy of this history.
+
+**Returns:**
+- `ChatHistory`: A new `ChatHistory` with the same items
+
+**Example:**
+```python
+original = ChatHistory().user("Hi")
+copy = original.copy()
+copy.ai("Hello")
+
+print(len(original))  # 1
+print(len(copy))      # 2
+```
+
+---
+
+##### to_input()
+
+```python
+def to_input(self) -> HistoryInput
+```
+
+Return the underlying item list as a `HistoryInput`.
+
+**Returns:**
+- `HistoryInput`: The raw list of `(role, content, msg_id)` tuples
+
+**Example:**
+```python
+history = ChatHistory().user("Hi").ai("Hello")
+input_data = history.to_input()
+
+# Use in API call
+await client.characters.chat(
+    character_id,
+    "How are you?",
+    history=input_data
+)
+```
+
+---
+
+#### Special Methods
+
+##### `__len__()`
+
+```python
+def __len__(self) -> int
+```
+
+Return the number of messages in the history.
+
+**Example:**
+```python
+history = ChatHistory().user("Hi").ai("Hello")
+print(len(history))  # 2
+```
+
+---
+
+##### `__iter__()`
+
+```python
+def __iter__(self) -> Iterator[HistoryItem]
+```
+
+Iterate over messages in the history.
+
+**Example:**
+```python
+history = ChatHistory().user("Hi").ai("Hello")
+for role, content, msg_id in history:
+    print(f"{role}: {content}")
+```
+
+---
+
+##### `__add__()` and `__iadd__()`
+
+```python
+def __add__(self, other: ChatHistory) -> ChatHistory
+def __iadd__(self, other: ChatHistory) -> ChatHistory
+```
+
+Merge chat histories using `+` or `+=` operators.
+
+**Example:**
+```python
+h1 = ChatHistory().user("Hi")
+h2 = ChatHistory().ai("Hello")
+
+# Create new merged history
+h3 = h1 + h2
+
+# Merge in-place
+h1 += h2
+```
+
+---
+
+#### Complete Example
+
+```python
+from seaart import SeaArt, ChatHistory, Role
+
+client = SeaArt()
+
+# Build conversation history
+history = ChatHistory()
+history.user("What's your favorite color?")
+history.ai("I love blue!")
+history.user("Why blue?")
+
+# Continue the conversation
+response = await client.characters.chat(
+    character_id="char_123",
+    message="Tell me more about why",
+    history=history
+)
+
+# Add response to history
+history.add(response)
+
+print(f"History length: {len(history)}")  # 4
+```
+
+---
+
+## Data Classes
+
+### CharacterLink
+
+Parsed components of a SeaArt character URL.
+
+```python
+@dataclass(frozen=True, slots=True)
+class CharacterLink:
+    character_id: str
+    session_id: str | None = None
+```
+
+**Attributes:**
+- `character_id` (str): Unique identifier of the character
+- `session_id` (str | None): Chat session ID extracted from the `s_id` query parameter, or `None` if absent
+
+**Example:**
+```python
+from seaart.helpers import extract_character_link
+
+link = extract_character_link(
+    "https://www.seaart.ai/character/chat/abc123?s_id=session456"
+)
+print(link.character_id)  # "abc123"
+print(link.session_id)    # "session456"
+```
+
+---
+
+### ModelLink
+
+Parsed components of a SeaArt model URL.
+
+```python
+@dataclass(frozen=True)
+class ModelLink:
+    model_no: str
+    model_ver_no: str | None = None
+```
+
+**Attributes:**
+- `model_no` (str): Unique model number
+- `model_ver_no` (str | None): Optional model version number, or `None` if absent
+
+**Example:**
+```python
+from seaart.helpers import extract_model_link
+
+link = extract_model_link(
+    "https://www.seaart.ai/create/image?id=model123&model_ver_no=v2"
+)
+print(link.model_no)      # "model123"
+print(link.model_ver_no)  # "v2"
+```
+
+---
+
+## Functions
+
+### extract_character_link()
+
+```python
+def extract_character_link(url: str) -> CharacterLink | None
+```
+
+Extract `character_id` and optional `session_id` from a SeaArt character URL.
+
+**Supported formats:**
+- `https://www.seaart.ai/character/chat/<character_id>?s_id=<session_id>`
+- `https://www.seaart.ai/character/details/<character_id>`
+
+**Parameters:**
+- `url` (str): A SeaArt character chat or details URL
+
+**Returns:**
+- `CharacterLink | None`: A `CharacterLink` with the parsed components, or `None` if the URL does not match a recognized format
+
+**Example:**
+```python
+from seaart.helpers import extract_character_link
+
+# Chat URL with session
+link = extract_character_link(
+    "https://www.seaart.ai/character/chat/char_abc123?s_id=sess_xyz789"
+)
+if link:
+    print(link.character_id)  # "char_abc123"
+    print(link.session_id)    # "sess_xyz789"
+
+# Details URL (no session)
+link = extract_character_link(
+    "https://www.seaart.ai/character/details/char_abc123"
+)
+if link:
+    print(link.character_id)  # "char_abc123"
+    print(link.session_id)    # None
+
+# Invalid URL
+link = extract_character_link("https://example.com")
+print(link)  # None
+```
+
+---
+
+### extract_model_link()
+
+```python
+def extract_model_link(url: str) -> ModelLink | None
+```
+
+Extract `model_no` and optional `model_ver_no` from a SeaArt model URL.
+
+**Supported formats:**
+- `https://www.seaart.ai/create/image?id=<model_no>&model_ver_no=<model_ver_no>`
+- `https://www.seaart.ai/models/detail/<model_no>`
+
+**Parameters:**
+- `url` (str): A SeaArt model detail or image-creation URL
+
+**Returns:**
+- `ModelLink | None`: A `ModelLink` with the parsed components, or `None` if the URL does not match a recognized format
+
+**Example:**
+```python
+from seaart.helpers import extract_model_link
+
+# Create image URL with version
+link = extract_model_link(
+    "https://www.seaart.ai/create/image?id=mdl_123&model_ver_no=v2.5"
+)
+if link:
+    print(link.model_no)      # "mdl_123"
+    print(link.model_ver_no)  # "v2.5"
+
+# Model detail URL (no version)
+link = extract_model_link(
+    "https://www.seaart.ai/models/detail/mdl_456"
+)
+if link:
+    print(link.model_no)      # "mdl_456"
+    print(link.model_ver_no)  # None
+
+# Invalid URL
+link = extract_model_link("https://example.com")
+print(link)  # None
+```
+
+---
+
+### extract_task_id_from_image_url()
+
+```python
+def extract_task_id_from_image_url(url: str) -> str | None
+```
+
+Extract the task ID embedded in a SeaArt CDN image URL.
+
+The task ID occupies the path segment immediately before the filename.
+
+**Parameters:**
+- `url` (str): A SeaArt CDN image URL
+
+**Returns:**
+- `str | None`: The task ID string, or `None` if the URL structure does not contain a recognizable task ID (e.g., static upload URLs)
+
+**Example:**
+```python
+from seaart.helpers import extract_task_id_from_image_url
+
+# Generated image URL
+task_id = extract_task_id_from_image_url(
+    "https://image.cdn2.seaart.me/2026-02-25/d6fhvcte878c73fhuu50/d9ed9776fe07c56308c14582781c35b1_high.webp"
+)
+print(task_id)  # "d6fhvcte878c73fhuu50"
+
+# Converted webp URL
+task_id = extract_task_id_from_image_url(
+    "https://image.cdn2.seaart.me/temp-convert-webp/highwebp/2025-07-04/d1k5dlte878c73c2cmu0/cfd7361544ce27c1dc02e75d451f7e7d_low.webp"
+)
+print(task_id)  # "d1k5dlte878c73c2cmu0"
+
+# Static upload (no task ID)
+task_id = extract_task_id_from_image_url(
+    "https://image.cdn2.seaart.me/upload/static/20260224/124f66c1b26f1e09d798c500aa386b03_high.webp"
+)
+print(task_id)  # None
+
+# Use with API
+task_id = extract_task_id_from_image_url(image_url)
+if task_id:
+    task = await client.tasks.get(task_id)
+    print(f"Task status: {task.status}")
+```

@@ -1,0 +1,260 @@
+---
+title: Character Chat Basics
+description: Complete examples for chatting with AI characters, managing sessions, and using chat history
+---
+
+## Basic Chat Flow
+
+The simplest way to chat with an AI character:
+
+```python
+import os
+from seaart import SyncClient
+from seaart.helpers import extract_character_link
+from seaart.types import AppId
+
+CHARACTER_URL = "https://www.seaart.ai/ru/character/chat/d5f5v2te878c73cmjhhg?from=null&s_id=123"
+
+def basic_chat():
+    """Send a single message and print the full response."""
+    link = extract_character_link(CHARACTER_URL)
+    assert link is not None
+    character_id = link.character_id
+
+    with SyncClient(app_id=AppId.APP) as client:
+        client.auth.login(
+            email=os.environ["SEAART_EMAIL"],
+            password=os.environ["SEAART_PASSWORD"],
+        )
+
+        chat = client.characters.chats.create(character_id)
+        session_id = chat.value.session_id
+
+        try:
+            result = client.characters.chats.send(
+                "Hello! Tell me about yourself.",
+                session_id,
+            )
+            print(result.text)
+            print(f"Message ID: {result.value.response_msg_id}")
+        finally:
+            client.characters.chats.delete(session_id)
+```
+
+### Key Points
+
+- Use `AppId.APP` for character interactions (required for model selection)
+- Always delete sessions when done to avoid quota issues
+- `extract_character_link()` parses character IDs from SeaArt URLs
+
+## Tourist Mode (No Authentication)
+
+Chat without an account using tourist mode:
+
+```python
+from seaart import SyncClient
+from seaart.helpers import extract_character_link
+from seaart.types import AppId
+
+CHARACTER_URL = "https://www.seaart.ai/ru/character/chat/d5f5v2te878c73cmjhhg"
+
+def tourist_chat():
+    """Chat without authentication.
+    
+    Tourist chats have a limited message quota and cannot change the AI model.
+    Use the additional header "x-device-id" so that SeaArt can identify your session.
+    """
+    link = extract_character_link(CHARACTER_URL)
+    assert link is not None
+    character_id = link.character_id
+
+    with SyncClient(
+        app_id=AppId.APP, 
+        default_headers={"x-device-id": "cf51e64c-30ec-453d-9c5c-5357ef159127"}
+    ) as client:
+        chat = client.characters.chats.create(character_id)
+        session_id = chat.value.session_id
+
+        result = client.characters.chats.send_tourist(
+            "Hello!",
+            session_id,
+        )
+        print(result.text)
+```
+
+<Note>
+Tourist mode requires a device ID header. Generate a UUID for your application and reuse it.
+</Note>
+
+## Maintaining Chat History
+
+Use `ChatHistory` to carry conversation context across sessions:
+
+```python
+import os
+from seaart import SyncClient
+from seaart.helpers import ChatHistory, extract_character_link
+from seaart.types import AppId
+
+CHARACTER_URL = "https://www.seaart.ai/ru/character/chat/d5f5v2te878c73cmjhhg"
+
+def chat_with_history():
+    """Use ChatHistory to carry context between sessions.
+    
+    ChatHistory stores messages as (role, content, msg_id) tuples.
+    Pass it to send() via the history parameter so the character
+    remembers prior turns even in a fresh session.
+    """
+    link = extract_character_link(CHARACTER_URL)
+    assert link is not None
+    character_id = link.character_id
+
+    with SyncClient(app_id=AppId.APP) as client:
+        client.auth.login(
+            email=os.environ["SEAART_EMAIL"],
+            password=os.environ["SEAART_PASSWORD"],
+        )
+
+        history = ChatHistory()
+
+        # --- First session ---
+        chat = client.characters.chats.create(character_id)
+        session_id = chat.value.session_id
+        # Save the welcome message from the character.
+        history.ai(chat.value.msg)
+
+        try:
+            result = client.characters.chats.send(
+                "My name is Alex, remember it.",
+                session_id,
+            )
+            # .add() accepts a CharacterChatCompletionResult directly.
+            history.user("My name is Alex, remember it.")
+            history.add(result)
+            print(f"Session 1: {result.text}")
+        finally:
+            client.characters.chats.delete(session_id)
+
+        # --- Second session (new chat, same history) ---
+        chat = client.characters.chats.create(character_id)
+        session_id = chat.value.session_id
+
+        try:
+            result = client.characters.chats.send(
+                "What's my name?",
+                session_id,
+                # The character sees the full conversation so far.
+                history=history.to_input(),
+            )
+            print(f"Session 2: {result.text}")
+        finally:
+            client.characters.chats.delete(session_id)
+```
+
+### How ChatHistory Works
+
+1. Create a `ChatHistory()` instance
+2. Add messages with `.user()`, `.ai()`, or `.add(result)`
+3. Pass `history.to_input()` to `send()` to restore context
+
+## Model Selection & Settings
+
+Change the AI model and enable enhanced memory:
+
+```python
+import os
+from seaart import SyncClient
+from seaart.helpers import extract_character_link
+from seaart.types import AppId
+
+CHARACTER_URL = "https://www.seaart.ai/ru/character/chat/d5f5v2te878c73cmjhhg"
+
+def chat_with_settings():
+    """Change the AI model and enable 2x memory before chatting."""
+    link = extract_character_link(CHARACTER_URL)
+    assert link is not None
+    character_id = link.character_id
+
+    with SyncClient(app_id=AppId.APP) as client:
+        client.auth.login(
+            email=os.environ["SEAART_EMAIL"],
+            password=os.environ["SEAART_PASSWORD"],
+        )
+
+        # Enable 2x memory across sessions.
+        client.characters.settings.update(enable_memory=1)
+
+        # Pick a model by title (case-insensitive).
+        models = client.characters.models()
+        gemini = models.value.by_title("gemini3")
+        if gemini is not None:
+            client.characters.settings.update(model=gemini.gpt_model)
+
+        chat = client.characters.chats.create(character_id)
+        session_id = chat.value.session_id
+
+        # start() returns the active settings — useful for verification.
+        start_info = client.characters.chats.start(session_id)
+        print(f"Memory enabled: {start_info.value.enable_memory}")
+
+        try:
+            result = client.characters.chats.send(
+                "Hello!",
+                session_id,
+                # Pass the model explicitly if you changed it above.
+                model=gemini.gpt_model if gemini else "",
+            )
+            print(result.text)
+        finally:
+            client.characters.chats.delete(session_id)
+```
+
+<Tip>
+Use `models.value.by_title()` for case-insensitive model lookup. Available models include "gemini3", "gpt4", and "claude3.5".
+</Tip>
+
+## Saving Voice Audio
+
+Characters can respond with voice audio:
+
+```python
+import os
+from seaart import SyncClient
+from seaart.helpers import extract_character_link
+from seaart.types import AppId
+
+CHARACTER_URL = "https://www.seaart.ai/ru/character/chat/d5f5v2te878c73cmjhhg"
+
+def save_voice_audio():
+    """Save the character's voice response to a file."""
+    link = extract_character_link(CHARACTER_URL)
+    assert link is not None
+    character_id = link.character_id
+
+    with SyncClient(app_id=AppId.APP) as client:
+        client.auth.login(
+            email=os.environ["SEAART_EMAIL"],
+            password=os.environ["SEAART_PASSWORD"],
+        )
+
+        chat = client.characters.chats.create(character_id)
+        session_id = chat.value.session_id
+
+        try:
+            result = client.characters.chats.send("Say something short.", session_id)
+            msg_id = result.value.response_msg_id
+            print(f"Response: {result.text}")
+
+            if msg_id:
+                path = client.characters.chats.save_audio(msg_id)
+                if path:
+                    print(f"Audio saved to: {path}")
+        finally:
+            client.characters.chats.delete(session_id)
+```
+
+## Next Steps
+
+- [Streaming](/guides/streaming) for real-time character responses
+- [Async Usage](/examples/async-usage) for concurrent character chats
+- [API Reference](/api/characters) for complete method details

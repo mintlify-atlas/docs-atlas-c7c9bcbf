@@ -1,0 +1,416 @@
+---
+title: Custom Requests
+description: Using request() and request_stream() for low-level API access
+---
+
+## When to Use Custom Requests
+
+The SDK doesn't cover every SeaArt API endpoint. For anything not wrapped by a resource method, use the low-level request interface:
+
+- `client.request()` — single request, returns APIEnvelope
+- `client.request_raw()` — single request, returns raw curl_cffi Response
+- `client.request_stream()` — SSE stream, yields parsed events
+
+All methods handle authentication headers, base URL construction, and logging automatically — you only provide the path and payload.
+
+## GET Request
+
+Fetch data from an uncovered endpoint with a GET request:
+
+```python
+import os
+from seaart import SyncClient
+
+def get_request():
+    """Fetch data from an uncovered endpoint with a GET request."""
+    with SyncClient() as client:
+        client.auth.login(
+            email=os.environ["SEAART_EMAIL"],
+            password=os.environ["SEAART_PASSWORD"],
+        )
+
+        # .data is the raw parsed dict (or None).
+        # .value is the same but raises MissingDataError if None.
+        envelope = client.request("GET", "some/endpoint", params={"limit": 10})
+        print(f"Status: {envelope.status.code}")
+        print(f"Data: {envelope.data}")
+```
+
+### Understanding APIEnvelope
+
+All SDK methods return `APIEnvelope`, which wraps the SeaArt API response:
+
+```python
+envelope = client.request("GET", "some/endpoint")
+
+# Access response data
+envelope.data          # dict | None - raw parsed JSON
+envelope.value         # dict - raises MissingDataError if None
+envelope.status.code   # int - HTTP status code
+envelope.status.msg    # str - status message
+```
+
+## POST Request
+
+Send a JSON payload to an uncovered endpoint:
+
+```python
+import os
+from seaart import SyncClient
+
+def post_request():
+    """Send a JSON payload to an uncovered endpoint."""
+    with SyncClient() as client:
+        client.auth.login(
+            email=os.environ["SEAART_EMAIL"],
+            password=os.environ["SEAART_PASSWORD"],
+        )
+
+        envelope = client.request(
+            "POST",
+            "some/endpoint",
+            json={"key": "value", "count": 5},
+        )
+        print(f"Status: {envelope.status.code}")
+        print(f"Data: {envelope.data}")
+```
+
+### Request Parameters
+
+All standard HTTP parameters are supported:
+
+```python
+envelope = client.request(
+    "POST",
+    "some/endpoint",
+    json={"key": "value"},           # JSON body
+    params={"filter": "active"},     # Query parameters
+    headers={"X-Custom": "header"},  # Additional headers
+    timeout=30,                      # Request timeout
+)
+```
+
+## SSE Streaming
+
+Stream server-sent events from an uncovered endpoint:
+
+```python
+import os
+from types import SimpleNamespace
+from typing import Any
+from seaart import SyncClient
+from seaart._transport_sse import SSEEvent
+
+def stream_request():
+    """Stream SSE events from an uncovered endpoint.
+    
+    request_stream() requires a parser function that converts each raw
+    SSE event into the type you want to yield.
+    """
+
+    def parser(ev: SSEEvent, obj: dict[str, Any] | None) -> SimpleNamespace:
+        return SimpleNamespace(event=ev.event, data=obj or ev.data)
+
+    with SyncClient() as client:
+        client.auth.login(
+            email=os.environ["SEAART_EMAIL"],
+            password=os.environ["SEAART_PASSWORD"],
+        )
+
+        for item in client.request_stream(
+            "POST",
+            "some/stream-endpoint",
+            json={"prompt": "Hello"},
+            parser=parser,
+        ):
+            print(f"[{item.event}] {item.data}")
+```
+
+### Custom Parser Function
+
+The parser function receives:
+
+- `ev: SSEEvent` — raw SSE event with `.event`, `.data`, `.id`, `.retry`
+- `obj: dict | None` — parsed JSON data if available
+
+Return any type you want to yield from the stream.
+
+## Using Built-in Parser
+
+Use `client.parse_sse_stream` for a standard parser:
+
+```python
+import os
+from seaart import SyncClient
+
+def stream_with_builtin_parser():
+    """Same as above, but using client.parse_sse_stream as the parser.
+    
+    parse_sse_stream returns a SimpleNamespace with .event, .data,
+    and .headers for each SSE event — no custom parser needed.
+    """
+    with SyncClient() as client:
+        client.auth.login(
+            email=os.environ["SEAART_EMAIL"],
+            password=os.environ["SEAART_PASSWORD"],
+        )
+
+        for item in client.request_stream(
+            "POST",
+            "some/stream-endpoint",
+            json={"prompt": "Hello"},
+            parser=client.parse_sse_stream,
+        ):
+            print(f"[{item.event}] {item.data}")
+```
+
+### Built-in Parser Output
+
+The built-in parser returns a `SimpleNamespace` with:
+
+- `event: str` — SSE event type
+- `data: dict | str` — parsed JSON data or raw string
+- `headers: dict` — response headers
+
+## Raw Requests
+
+Get a raw curl_cffi Response without APIEnvelope parsing:
+
+```python
+import os
+from seaart import SyncClient
+
+def raw_request():
+    """Get a raw curl_cffi Response without APIEnvelope parsing.
+    
+    Use request_raw() when the endpoint returns HTML, binary data,
+    or any format that doesn't fit the standard SeaArt API envelope.
+    """
+    with SyncClient() as client:
+        client.auth.login(
+            email=os.environ["SEAART_EMAIL"],
+            password=os.environ["SEAART_PASSWORD"],
+        )
+
+        r = client.request_raw("GET", "some/page")
+        print(f"Status: {r.status_code}")
+        print(f"Content-Type: {r.headers.get('content-type')}")
+        print(f"Body: {r.text[:200]}")
+```
+
+### Raw Response Object
+
+The raw response is a `curl_cffi.Response` with:
+
+- `status_code: int` — HTTP status code
+- `headers: dict` — response headers
+- `text: str` — response body as text
+- `content: bytes` — response body as bytes
+- `json()` — parse JSON response
+
+## Downloading Binary Content
+
+Download binary content (e.g., images) with request_raw():
+
+```python
+import os
+from seaart import SyncClient
+
+def raw_request_binary():
+    """Download binary content (e.g. an image) with request_raw()."""
+    with SyncClient() as client:
+        client.auth.login(
+            email=os.environ["SEAART_EMAIL"],
+            password=os.environ["SEAART_PASSWORD"],
+        )
+
+        r = client.request_raw("GET", "some/image-endpoint")
+        with open("downloaded.png", "wb") as f:
+            f.write(r.content)
+        print(f"Saved {len(r.content)} bytes")
+```
+
+## Complete Custom Endpoint Example
+
+Implementing a custom endpoint wrapper:
+
+```python
+import os
+from typing import Optional
+from dataclasses import dataclass
+from seaart import SyncClient
+from seaart.types import APIEnvelope
+
+@dataclass
+class CustomResult:
+    """Custom result type for our endpoint."""
+    id: str
+    title: str
+    created_at: int
+
+class CustomResource:
+    """Custom resource for an uncovered API endpoint."""
+    
+    def __init__(self, client: SyncClient):
+        self.client = client
+    
+    def list(self, limit: int = 10) -> list[CustomResult]:
+        """Fetch a list of items from the custom endpoint."""
+        envelope = self.client.request(
+            "GET",
+            "custom/items",
+            params={"limit": limit},
+        )
+        
+        items = envelope.value.get("items", [])
+        return [
+            CustomResult(
+                id=item["id"],
+                title=item["title"],
+                created_at=item["created_at"],
+            )
+            for item in items
+        ]
+    
+    def get(self, item_id: str) -> Optional[CustomResult]:
+        """Fetch a single item by ID."""
+        envelope = self.client.request(
+            "GET",
+            f"custom/items/{item_id}",
+        )
+        
+        if not envelope.data:
+            return None
+        
+        item = envelope.value
+        return CustomResult(
+            id=item["id"],
+            title=item["title"],
+            created_at=item["created_at"],
+        )
+    
+    def create(self, title: str) -> CustomResult:
+        """Create a new item."""
+        envelope = self.client.request(
+            "POST",
+            "custom/items",
+            json={"title": title},
+        )
+        
+        item = envelope.value
+        return CustomResult(
+            id=item["id"],
+            title=item["title"],
+            created_at=item["created_at"],
+        )
+
+# Usage
+def use_custom_resource():
+    with SyncClient() as client:
+        client.auth.login(
+            email=os.environ["SEAART_EMAIL"],
+            password=os.environ["SEAART_PASSWORD"],
+        )
+        
+        custom = CustomResource(client)
+        
+        # List items
+        items = custom.list(limit=5)
+        for item in items:
+            print(f"{item.id}: {item.title}")
+        
+        # Create item
+        new_item = custom.create("My New Item")
+        print(f"Created: {new_item.id}")
+        
+        # Get specific item
+        item = custom.get(new_item.id)
+        if item:
+            print(f"Found: {item.title}")
+```
+
+## Async Custom Requests
+
+All custom request methods work with AsyncClient:
+
+```python
+import asyncio
+import os
+from seaart import AsyncClient
+
+async def async_custom_request():
+    """Use custom requests with AsyncClient."""
+    async with AsyncClient() as client:
+        await client.auth.login(
+            email=os.environ["SEAART_EMAIL"],
+            password=os.environ["SEAART_PASSWORD"],
+        )
+        
+        # GET request
+        envelope = await client.request("GET", "some/endpoint")
+        print(f"Data: {envelope.data}")
+        
+        # POST request
+        envelope = await client.request(
+            "POST",
+            "some/endpoint",
+            json={"key": "value"},
+        )
+        print(f"Result: {envelope.data}")
+        
+        # Stream request
+        async for item in client.request_stream(
+            "POST",
+            "some/stream-endpoint",
+            json={"prompt": "Hello"},
+            parser=client.parse_sse_stream,
+        ):
+            print(f"[{item.event}] {item.data}")
+
+if __name__ == "__main__":
+    asyncio.run(async_custom_request())
+```
+
+## Error Handling
+
+Handle API errors in custom requests:
+
+```python
+import os
+from seaart import SyncClient
+from seaart.types import APIError, MissingDataError
+
+def custom_request_with_errors():
+    """Handle errors in custom requests."""
+    with SyncClient() as client:
+        client.auth.login(
+            email=os.environ["SEAART_EMAIL"],
+            password=os.environ["SEAART_PASSWORD"],
+        )
+        
+        try:
+            envelope = client.request("GET", "some/endpoint")
+            
+            # Check status code
+            if envelope.status.code != 200:
+                print(f"Error: {envelope.status.msg}")
+                return
+            
+            # Access data (raises MissingDataError if None)
+            data = envelope.value
+            print(f"Data: {data}")
+            
+        except APIError as e:
+            print(f"API error: {e}")
+        except MissingDataError:
+            print("No data in response")
+        except Exception as e:
+            print(f"Unexpected error: {e}")
+```
+
+## Next Steps
+
+- [API Reference](/api/sync-client) for all available methods
+- [Chat Basics](/examples/chat-basics) for high-level character chat
+- [Image Workflows](/examples/image-workflows) for image generation
+- [Async Usage](/examples/async-usage) for concurrent operations

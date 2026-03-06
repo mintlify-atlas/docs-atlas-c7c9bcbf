@@ -1,0 +1,575 @@
+---
+title: "Images"
+description: "Image generation and manipulation resource"
+---
+
+# Images
+
+The Images resource provides image generation and manipulation operations including text-to-image, image-to-image, upscaling, and background removal.
+
+**Access:** `client.images`
+
+## Sub-resources
+
+- **`history`** - Image usage history
+
+## Generation Methods
+
+### text_to_img
+
+Submit a text-to-image generation task.
+
+```python
+from seaart import SyncClient, ImageSize
+
+client = SyncClient()
+client.auth.login("user@example.com", "password")
+
+envelope = client.images.text_to_img(
+    prompt="a cat in a forest",
+    model_no="model_abc123"
+)
+item = envelope.wait()  # Wait for generation to complete
+print(item.image_url)
+```
+
+<ParamField path="prompt" type="str" required>
+  Text prompt describing the desired image
+</ParamField>
+
+<ParamField path="model_no" type="str" required>
+  Model identifier to use for generation
+</ParamField>
+
+<ParamField path="model_ver_no" type="str | None" default="None">
+  Model version identifier. Resolved automatically from cache when `None`
+</ParamField>
+
+<ParamField path="gen_mode" type="Literal['standard', 'quality']" default="'standard'">
+  Generation quality mode
+</ParamField>
+
+<ParamField path="prompt_magic" type="bool | None" default="None">
+  Enable AI prompt enhancement before generation. Uses server default when `None`
+</ParamField>
+
+<ParamField path="image_size" type="ImageSize" default="ImageSize.PORTRAIT_2_3">
+  Output aspect ratio. Use an `ImageSize` preset or `ImageSize.custom()` for exact pixels
+</ParamField>
+
+<ParamField path="num_images" type="int" default="1">
+  Number of images to generate in one task
+</ParamField>
+
+<ParamField path="free_creation" type="bool | None" default="None">
+  Use free generation quota when `True`. Uses server default when `None`
+</ParamField>
+
+<ParamField path="image_url" type="str | None" default="None">
+  Optional reference image URL for conditioning
+</ParamField>
+
+<ParamField path="options" type="TextToImgOptions | None" default="None">
+  Advanced generation options (negative prompt, sampling parameters, LoRA models, etc.)
+</ParamField>
+
+<ResponseField name="return" type="SyncTaskEnvelope[TaskMetadata]">
+  Task envelope:
+  - `.value.id` - Task ID
+  - `.wait()` - Block until generation completes and receive a `TaskItem` with `.image_url` / `.image_urls`
+</ResponseField>
+
+**Location:** `src/seaart/resources/sync/images.py:94`
+
+---
+
+### img_to_img
+
+Submit an image-to-image generation task.
+
+```python
+envelope = client.images.img_to_img(
+    prompt="a cat in a forest",
+    model_no="model_abc123",
+    image_url="https://example.com/input.png",
+    strength=0.5
+)
+item = envelope.wait()
+print(item.image_url)
+```
+
+<ParamField path="prompt" type="str" required>
+  Text prompt describing the desired output
+</ParamField>
+
+<ParamField path="model_no" type="str" required>
+  Model identifier to use for generation
+</ParamField>
+
+<ParamField path="image_url" type="str" required>
+  URL of the input image to transform
+</ParamField>
+
+<ParamField path="model_ver_no" type="str | None" default="None">
+  Model version identifier. Resolved automatically from cache when `None`
+</ParamField>
+
+<ParamField path="strength" type="float" default="0.35">
+  Denoising strength (0.01-1.0). Lower values preserve more of the original; higher values allow greater change
+</ParamField>
+
+<ParamField path="prompt_magic" type="bool | None" default="None">
+  Enable AI prompt enhancement
+</ParamField>
+
+<ParamField path="image_size" type="ImageSize" default="ImageSize.PORTRAIT_2_3">
+  Output aspect ratio
+</ParamField>
+
+<ParamField path="num_images" type="int" default="1">
+  Number of images to generate
+</ParamField>
+
+<ParamField path="free_creation" type="bool | None" default="None">
+  Use free generation quota
+</ParamField>
+
+<ParamField path="options" type="ImgToImgOptions | None" default="None">
+  Advanced generation options
+</ParamField>
+
+<ResponseField name="return" type="SyncTaskEnvelope[TaskMetadata]">
+  Task envelope with `.wait()` method
+</ResponseField>
+
+**Location:** `src/seaart/resources/sync/images.py:167`
+
+---
+
+### img_to_text
+
+Submit an image-to-text (captioning) task.
+
+```python
+envelope = client.images.img_to_text("https://example.com/image.png")
+item = envelope.wait()
+print(item.caption)
+```
+
+<ParamField path="image_url" type="str" required>
+  URL of the image to describe
+</ParamField>
+
+<ParamField path="ss" type="int | None" default="None">
+  Optional extra parameter forwarded to the API
+</ParamField>
+
+<ResponseField name="return" type="SyncTaskEnvelope[ImageToTextResult]">
+  Task envelope. Call `.wait()` to block until task completes
+</ResponseField>
+
+**Location:** `src/seaart/resources/sync/images.py:243`
+
+---
+
+### controlnet
+
+Submit a ControlNet-guided image generation task.
+
+```python
+envelope = client.images.controlnet(
+    prompt="a portrait",
+    model_no="model_abc123",
+    control_input_image="https://example.com/control.png",
+    weight=0.75
+)
+item = envelope.wait()
+print(item.image_url)
+```
+
+<ParamField path="prompt" type="str" required>
+  Text prompt describing the desired image
+</ParamField>
+
+<ParamField path="model_no" type="str" required>
+  Model identifier
+</ParamField>
+
+<ParamField path="control_input_image" type="str" required>
+  URL of the guidance image fed to ControlNet
+</ParamField>
+
+<ParamField path="model_ver_no" type="str | None" default="None">
+  Model version identifier
+</ParamField>
+
+<ParamField path="gen_mode" type="Literal['standard', 'quality']" default="'standard'">
+  Generation quality mode
+</ParamField>
+
+<ParamField path="prompt_magic" type="bool | None" default="None">
+  Enable AI prompt enhancement
+</ParamField>
+
+<ParamField path="weight" type="float" default="0.75">
+  ControlNet guidance weight (0.0-1.0). Higher values follow the guidance image more closely
+</ParamField>
+
+<ParamField path="image_size" type="ImageSize" default="ImageSize.PORTRAIT_2_3">
+  Output aspect ratio
+</ParamField>
+
+<ParamField path="num_images" type="int" default="1">
+  Number of images to generate
+</ParamField>
+
+<ParamField path="free_creation" type="bool | None" default="None">
+  Use free generation quota
+</ParamField>
+
+<ParamField path="options" type="ControlnetToImgOptions | None" default="None">
+  Advanced generation options
+</ParamField>
+
+<ResponseField name="return" type="SyncTaskEnvelope[TaskMetadata]">
+  Task envelope with `.wait()` method
+</ResponseField>
+
+**Location:** `src/seaart/resources/sync/images.py:273`
+
+---
+
+### smart_edit
+
+Submit a smart image editing task driven by a text prompt.
+
+```python
+envelope = client.images.smart_edit(
+    prompt="make the background white",
+    image_url="https://example.com/input.png"
+)
+item = envelope.wait()
+print(item.image_url)
+```
+
+<ParamField path="prompt" type="str" required>
+  Text prompt describing the desired edit
+</ParamField>
+
+<ParamField path="image_url" type="str" required>
+  URL of the input image to edit
+</ParamField>
+
+<ParamField path="apply_id" type="str" default="'d017fv5e878c738ltm1g'">
+  Smart editing workflow identifier used by the API
+</ParamField>
+
+<ParamField path="is_use_unlimited_free" type="bool" default="False">
+  Use unlimited free generation mode when available
+</ParamField>
+
+<ParamField path="task_flow_version" type="str" default="'v2'">
+  Task flow version forwarded to the API
+</ParamField>
+
+<ParamField path="node_type_2" type="str" default="'TextEncodeQwenImageEditPlus_lrzjason'">
+  Internal node type identifier for the prompt encoder
+</ParamField>
+
+<ParamField path="ss" type="int | None" default="None">
+  Optional extra parameter
+</ParamField>
+
+<ResponseField name="return" type="SyncTaskEnvelope[SmartGenerationId]">
+  Task envelope. `.value.id` is the generated task ID
+</ResponseField>
+
+**Location:** `src/seaart/resources/sync/images.py:352`
+
+---
+
+## Upscaling Methods
+
+### upscale
+
+Submit an image upscaling task. When `image_url` is a SeaArt CDN URL, model and options are resolved automatically.
+
+```python
+# With SeaArt CDN URL (auto-resolves settings)
+envelope = client.images.upscale("https://image.cdn2.seaart.me/...")
+item = envelope.wait()
+print(item.image_url)
+
+# With external URL (must provide model)
+envelope = client.images.upscale(
+    image_url="https://example.com/image.png",
+    model_no="model_abc123",
+    options=UpscaleOptions()
+)
+```
+
+<ParamField path="image_url" type="str" required>
+  URL of the image to upscale
+</ParamField>
+
+<ParamField path="model_no" type="str | None" default="None">
+  Model identifier. Required when URL doesn't contain embedded task ID
+</ParamField>
+
+<ParamField path="model_ver_no" type="str | None" default="None">
+  Model version identifier. Resolved from cache when `None`
+</ParamField>
+
+<ParamField path="prompt" type="str | None" default="None">
+  Prompt passed to upscaler. Resolved from original task when `None` and URL contains task ID
+</ParamField>
+
+<ParamField path="options" type="UpscaleOptions | None" default="None">
+  Advanced upscaling options. Resolved from original task when `None` and URL contains task ID
+</ParamField>
+
+<ResponseField name="return" type="SyncTaskEnvelope[TaskMetadata]">
+  Task envelope with `.wait()` method
+</ResponseField>
+
+**Raises:**
+- `InvalidRequestError` - If URL doesn't contain task ID and `model_no` or `options` are not provided
+
+**Location:** `src/seaart/resources/sync/images.py:406`
+
+---
+
+### upscale_hd_fix
+
+Submit an HD-fix upscaling task.
+
+```python
+envelope = client.images.upscale_hd_fix(
+    image_url="https://image.cdn2.seaart.me/...",
+    upscaling_resize=4
+)
+item = envelope.wait()
+print(item.image_url)
+```
+
+<ParamField path="image_url" type="str" required>
+  URL of the image to upscale
+</ParamField>
+
+<ParamField path="upscaler" type="Upscaler | str" default="'4x-UltraSharp'">
+  Upscaler algorithm to use
+</ParamField>
+
+<ParamField path="upscaling_resize" type="float" default="2">
+  Scale factor for the output (e.g. `2` or `4`)
+</ParamField>
+
+<ParamField path="options" type="UpscaleHdFixOptions | None" default="None">
+  Advanced options. Auto-resolved from original task when `None` and URL contains task ID
+</ParamField>
+
+<ResponseField name="return" type="SyncTaskEnvelope[NewTask]">
+  Task envelope with `.wait()` method
+</ResponseField>
+
+**Location:** `src/seaart/resources/sync/images.py:500`
+
+---
+
+### remove_bg
+
+Submit a background removal task.
+
+```python
+envelope = client.images.remove_bg("https://example.com/image.png")
+item = envelope.wait()
+print(item.image_url)
+```
+
+<ParamField path="image_url" type="str" required>
+  URL of the image to process
+</ParamField>
+
+<ParamField path="options" type="RemoveBgOptions | None" default="None">
+  Background removal options. Auto-resolved from original task when `None` and URL contains task ID
+</ParamField>
+
+<ResponseField name="return" type="SyncTaskEnvelope[NewTask]">
+  Task envelope with `.wait()` method
+</ResponseField>
+
+**Location:** `src/seaart/resources/sync/images.py:572`
+
+---
+
+## Upload Methods
+
+### upload
+
+Upload an image file to the SeaArt platform.
+
+```python
+# From file path
+result = client.images.upload(path="/tmp/photo.png")
+print(result.value.url)
+
+# From base64 string
+result = client.images.upload(base64_str="iVBORw0KGgoAAAANS...")
+
+# From bytes
+with open("/tmp/photo.png", "rb") as f:
+    result = client.images.upload(bytes_data=f.read())
+```
+
+<ParamField path="path" type="str | Path | None" default="None">
+  Filesystem path to the image file
+</ParamField>
+
+<ParamField path="base64_str" type="str | None" default="None">
+  Base64-encoded image data. Data-URI prefixes are stripped automatically
+</ParamField>
+
+<ParamField path="bytes_data" type="bytes | None" default="None">
+  Raw image bytes
+</ParamField>
+
+<ParamField path="filename" type="str | None" default="None">
+  Filename to use in upload. Inferred from `path` when not provided
+</ParamField>
+
+<ParamField path="category" type="int" default="36">
+  Upload category flag forwarded to the API
+</ParamField>
+
+<ResponseField name="return" type="APIEnvelope[UploadedImage]">
+  Upload result:
+  - `.value.url` - Public image URL
+  - `.value.signed` - Signed URL
+</ResponseField>
+
+**Raises:**
+- `InvalidRequestError` - If not exactly one of `path`, `base64_str`, or `bytes_data` is provided
+
+**Location:** `src/seaart/resources/sync/images.py:649`
+
+---
+
+### upload_by_url
+
+Upload an image to the platform by providing a public URL.
+
+```python
+result = client.images.upload_by_url("https://example.com/photo.jpg")
+print(result.value.access_url)
+```
+
+<ParamField path="url" type="str" required>
+  Publicly accessible image URL to import
+</ParamField>
+
+<ResponseField name="return" type="APIEnvelope[UploadedImageUrl]">
+  Import result:
+  - `.value.access_url` - Internal URL of the imported image on SeaArt platform
+</ResponseField>
+
+**Location:** `src/seaart/resources/sync/images.py:735`
+
+---
+
+## Utility Methods
+
+### get_download_url
+
+Request a direct download link for an image.
+
+```python
+result = client.images.get_download_url("https://image.cdn2.seaart.me/...")
+print(result.value.url)
+print(result.value.task_id)
+```
+
+<ParamField path="image_url" type="str" required>
+  URL of the image to download
+</ParamField>
+
+<ResponseField name="return" type="APIEnvelope[ImageDownload]">
+  Download information:
+  - `.value.url` - Direct download URL
+  - `.value.task_id` - Associated task ID
+</ResponseField>
+
+**Location:** `src/seaart/resources/sync/images.py:626`
+
+---
+
+### estimate
+
+Estimate the coin cost for a generation task without submitting it.
+
+```python
+result = client.images.estimate(
+    prompt="a cat",
+    model_no="model_abc123"
+)
+print(result.value.calculate_coins)
+```
+
+<ParamField path="prompt" type="str" required>
+  Text prompt for generation
+</ParamField>
+
+<ParamField path="model_no" type="str | None" default="None">
+  Model identifier. Resolved from `image_url` context when `None`
+</ParamField>
+
+<ParamField path="image_url" type="str | None" default="None">
+  Optional reference image URL for img-to-img cost estimation
+</ParamField>
+
+<ParamField path="model_ver_no" type="str | None" default="None">
+  Model version identifier
+</ParamField>
+
+<ParamField path="options" type="EstimateOptions | None" default="None">
+  Generation options used to compute the estimate
+</ParamField>
+
+<ResponseField name="return" type="APIEnvelope[Estimate]">
+  Cost estimate:
+  - `.value.calculate_coins` - Estimated coin cost
+  - `.value.has_discount` - Whether a discount applies
+  - `.value.calculate_coins_before_discount` - Undiscounted cost
+</ResponseField>
+
+**Location:** `src/seaart/resources/sync/images.py:758`
+
+---
+
+### detail
+
+Fetch detailed artwork information for a task.
+
+```python
+info = client.images.detail("tid1")
+for uri in info.value.img_uris:
+    print(uri.url)
+```
+
+<ParamField path="id" type="str" required>
+  Task identifier to look up
+</ParamField>
+
+<ParamField path="task_flow_version" type="str" default="'v2'">
+  Task flow version forwarded to the API
+</ParamField>
+
+<ResponseField name="return" type="APIEnvelope[ArtworkDetails]">
+  Artwork details:
+  - `.value.img_uris` - Generated image entries
+  - `.value.art_model_name` - Model used
+  - `.value.artwork_no` - Public artwork identifier
+</ResponseField>
+
+**Note:** This is a thin wrapper around `client.tasks.detail()`
+
+**Location:** `src/seaart/resources/sync/images.py:813`

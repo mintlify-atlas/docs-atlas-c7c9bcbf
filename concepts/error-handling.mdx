@@ -1,0 +1,556 @@
+---
+title: "Error Handling"
+description: "Learn how to handle errors and exceptions in the SeaArt SDK"
+---
+
+## Overview
+
+The SeaArt SDK provides a comprehensive exception hierarchy to help you handle different types of errors gracefully. All exceptions inherit from `SeaArtError`, making it easy to catch all SDK-related errors.
+
+## Exception Hierarchy
+
+```
+SeaArtError (base)
+├── APIError (API/HTTP errors)
+│   ├── AuthError (authentication)
+│   │   ├── AccountNotFoundError
+│   │   ├── InvalidPasswordError
+│   │   ├── AuthTokenInvalidError
+│   │   ├── AccountNotLoggedInError
+│   │   └── AccountBlockedError
+│   ├── ParamsError (invalid parameters)
+│   ├── ServerError (server-side errors)
+│   ├── AccountForbiddenError
+│   ├── BalanceNotEnoughError
+│   ├── FeatureRequiresPaymentError
+│   ├── PromptHaveSensitiveWordsError
+│   └── ... (other API errors)
+├── MissingDataError (null data access)
+├── TaskTimeoutError (task polling timeout)
+├── InvalidRequestError (invalid parameters)
+└── StreamInterruptedError (stream disconnection)
+```
+
+## Basic Error Handling
+
+### Catching All SDK Errors
+
+<CodeGroup>
+```python Sync
+from seaart import SyncClient
+from seaart.exceptions import SeaArtError
+
+client = SyncClient()
+
+try:
+    session = client.auth.login("user@example.com", "password")
+    print("Login successful!")
+except SeaArtError as e:
+    print(f"SeaArt SDK error: {e}")
+```
+
+```python Async
+from seaart import AsyncClient
+from seaart.exceptions import SeaArtError
+import asyncio
+
+async def main():
+    client = AsyncClient()
+    
+    try:
+        session = await client.auth.login("user@example.com", "password")
+        print("Login successful!")
+    except SeaArtError as e:
+        print(f"SeaArt SDK error: {e}")
+    
+    await client.close()
+
+asyncio.run(main())
+```
+</CodeGroup>
+
+### Catching API Errors
+
+`APIError` is raised for HTTP failures and API-level errors:
+
+```python
+from seaart import SyncClient
+from seaart.exceptions import APIError
+
+client = SyncClient(token="abc123")
+
+try:
+    me = client.account.me()
+except APIError as e:
+    print(f"HTTP Status: {e.http_status}")
+    print(f"API Code: {e.code}")
+    print(f"Message: {e.msg}")
+    print(f"Raw Body: {e.body}")
+```
+
+<Note>
+`APIError` has four useful attributes:
+- `http_status` - HTTP status code (e.g., 400, 500)
+- `code` - SeaArt API error code
+- `msg` - Human-readable error message
+- `body` - Raw response body as bytes
+</Note>
+
+## Common Error Scenarios
+
+### Authentication Errors
+
+<CodeGroup>
+```python Sync
+from seaart import SyncClient
+from seaart.exceptions import (
+    AccountNotFoundError,
+    InvalidPasswordError,
+    AccountBlockedError,
+    AuthTokenInvalidError,
+)
+
+client = SyncClient()
+
+try:
+    session = client.auth.login("user@example.com", "wrong_password")
+except AccountNotFoundError:
+    print("No account exists with that email")
+except InvalidPasswordError:
+    print("The password is incorrect")
+except AccountBlockedError:
+    print("This account has been blocked")
+except AuthTokenInvalidError:
+    print("Authentication token is invalid or expired")
+```
+
+```python Async
+from seaart import AsyncClient
+from seaart.exceptions import (
+    AccountNotFoundError,
+    InvalidPasswordError,
+    AccountBlockedError,
+    AuthTokenInvalidError,
+)
+import asyncio
+
+async def main():
+    client = AsyncClient()
+    
+    try:
+        session = await client.auth.login("user@example.com", "wrong_password")
+    except AccountNotFoundError:
+        print("No account exists with that email")
+    except InvalidPasswordError:
+        print("The password is incorrect")
+    except AccountBlockedError:
+        print("This account has been blocked")
+    except AuthTokenInvalidError:
+        print("Authentication token is invalid or expired")
+    
+    await client.close()
+
+asyncio.run(main())
+```
+</CodeGroup>
+
+### Payment and Balance Errors
+
+```python
+from seaart import SyncClient
+from seaart.exceptions import (
+    BalanceNotEnoughError,
+    FeatureRequiresPaymentError,
+)
+
+client = SyncClient(token="abc123")
+
+try:
+    task = client.tasks.txt2img(
+        prompt="A beautiful landscape",
+        model_id="premium_model_123",
+    )
+except BalanceNotEnoughError:
+    print("Insufficient balance to complete this operation")
+except FeatureRequiresPaymentError:
+    print("This feature requires a paid subscription")
+```
+
+### Content Moderation Errors
+
+```python
+from seaart import SyncClient
+from seaart.exceptions import PromptHaveSensitiveWordsError
+
+client = SyncClient(token="abc123")
+
+try:
+    task = client.tasks.txt2img(
+        prompt="[inappropriate content]",
+        model_id="1234",
+    )
+except PromptHaveSensitiveWordsError as e:
+    print("Your prompt contains sensitive words and was rejected")
+    print(f"Details: {e.msg}")
+```
+
+### Parameter Errors
+
+```python
+from seaart import SyncClient
+from seaart.exceptions import (
+    ParamsError,
+    InvalidRequestError,
+    ImageCountExceedLimitError,
+)
+
+client = SyncClient(token="abc123")
+
+try:
+    task = client.tasks.txt2img(
+        prompt="Landscape",
+        model_id="1234",
+        batch_size=100,  # Too many images
+    )
+except ParamsError as e:
+    print(f"Invalid parameters: {e.msg}")
+except ImageCountExceedLimitError:
+    print("The number of images exceeds the allowed limit")
+except InvalidRequestError as e:
+    print(f"Request validation failed: {e}")
+```
+
+### Server Errors
+
+```python
+from seaart import SyncClient
+from seaart.exceptions import ServerError, ProcessingError
+import time
+
+client = SyncClient(token="abc123")
+
+max_retries = 3
+for attempt in range(max_retries):
+    try:
+        task = client.tasks.txt2img(
+            prompt="Landscape",
+            model_id="1234",
+        )
+        break
+    except ServerError as e:
+        print(f"Server error (attempt {attempt + 1}/{max_retries}): {e.msg}")
+        if attempt < max_retries - 1:
+            time.sleep(2 ** attempt)  # Exponential backoff
+        else:
+            raise
+    except ProcessingError as e:
+        print(f"Processing error: {e.msg}")
+        raise
+```
+
+## Accessing Response Data
+
+### MissingDataError
+
+`MissingDataError` is raised when you try to access `.value` on an `APIEnvelope` that has `None` data:
+
+```python
+from seaart import SyncClient
+from seaart.exceptions import MissingDataError
+
+client = SyncClient(token="abc123")
+
+try:
+    envelope = client.auth.logout()  # Returns APIEnvelope[None]
+    value = envelope.value  # This raises MissingDataError
+except MissingDataError:
+    print("Cannot access .value on an envelope with no data")
+    # Use envelope.data instead, which can be None
+    print(f"Data: {envelope.data}")  # None
+```
+
+## Streaming Errors
+
+### StreamInterruptedError
+
+Raised when a streaming response ends unexpectedly:
+
+```python
+from seaart import SyncClient
+from seaart.exceptions import StreamInterruptedError
+
+client = SyncClient(token="abc123")
+
+try:
+    for chunk in client.characters.chat_stream(
+        character_id="char123",
+        message="Hello",
+    ):
+        print(chunk.data.content, end="")
+except StreamInterruptedError:
+    print("\nStream was interrupted before completion")
+```
+
+## Task Polling Errors
+
+### TaskTimeoutError
+
+Raised when task polling exceeds the timeout:
+
+```python
+from seaart import SyncClient
+from seaart.exceptions import TaskTimeoutError
+
+client = SyncClient(token="abc123")
+
+try:
+    result = client.tasks.wait_for_completion(
+        task_id="task123",
+        timeout=60,  # Wait max 60 seconds
+    )
+except TaskTimeoutError:
+    print("Task did not complete within the timeout period")
+```
+
+## Advanced Error Handling
+
+### Retry Logic with Exponential Backoff
+
+```python
+from seaart import SyncClient
+from seaart.exceptions import APIError, ServerError
+import time
+import random
+
+def make_request_with_retry(client, max_retries=3):
+    """Make a request with exponential backoff retry logic."""
+    for attempt in range(max_retries):
+        try:
+            return client.account.me()
+        except ServerError as e:
+            if attempt == max_retries - 1:
+                raise
+            
+            # Exponential backoff with jitter
+            wait_time = (2 ** attempt) + random.uniform(0, 1)
+            print(f"Retry {attempt + 1}/{max_retries} after {wait_time:.2f}s")
+            time.sleep(wait_time)
+        except APIError as e:
+            # Don't retry client errors (4xx)
+            if 400 <= e.http_status < 500:
+                raise
+            # Retry server errors (5xx)
+            if e.http_status >= 500 and attempt < max_retries - 1:
+                wait_time = (2 ** attempt) + random.uniform(0, 1)
+                time.sleep(wait_time)
+            else:
+                raise
+
+client = SyncClient(token="abc123")
+result = make_request_with_retry(client)
+```
+
+### Custom Error Handler
+
+```python
+from seaart import SyncClient
+from seaart.exceptions import (
+    APIError,
+    AuthError,
+    BalanceNotEnoughError,
+    ServerError,
+)
+import logging
+
+logger = logging.getLogger(__name__)
+
+class ErrorHandler:
+    """Centralized error handling for SeaArt API."""
+    
+    @staticmethod
+    def handle(error: Exception) -> None:
+        """Handle different types of errors appropriately."""
+        if isinstance(error, AuthError):
+            logger.error(f"Authentication error: {error}")
+            # Trigger re-authentication flow
+            ErrorHandler._reauthenticate()
+        
+        elif isinstance(error, BalanceNotEnoughError):
+            logger.warning("Insufficient balance")
+            # Notify user to add credits
+            ErrorHandler._notify_low_balance()
+        
+        elif isinstance(error, ServerError):
+            logger.error(f"Server error: {error.msg}")
+            # Report to monitoring system
+            ErrorHandler._report_to_sentry(error)
+        
+        elif isinstance(error, APIError):
+            logger.error(f"API error [{error.code}]: {error.msg}")
+            # Log detailed error info
+        
+        else:
+            logger.exception("Unexpected error")
+            raise
+    
+    @staticmethod
+    def _reauthenticate():
+        # Implement re-authentication logic
+        pass
+    
+    @staticmethod
+    def _notify_low_balance():
+        # Implement notification logic
+        pass
+    
+    @staticmethod
+    def _report_to_sentry(error):
+        # Implement error reporting
+        pass
+
+# Usage
+client = SyncClient(token="abc123")
+
+try:
+    me = client.account.me()
+except Exception as e:
+    ErrorHandler.handle(e)
+```
+
+### Logging API Errors
+
+```python
+import logging
+from seaart import SyncClient
+from seaart.exceptions import APIError
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+client = SyncClient(token="abc123")
+
+try:
+    task = client.tasks.txt2img(
+        prompt="A beautiful sunset",
+        model_id="1234",
+    )
+    logger.info(f"Task created: {task.value.task_id}")
+except APIError as e:
+    logger.error(
+        "API request failed",
+        extra={
+            "http_status": e.http_status,
+            "api_code": e.code,
+            "message": e.msg,
+            "body_preview": e.body[:200].decode('utf-8', errors='ignore'),
+        }
+    )
+    raise
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Catch specific exceptions first">
+    Always catch specific exceptions before generic ones:
+    
+    ```python
+    try:
+        session = client.auth.login(email, password)
+    except InvalidPasswordError:
+        # Handle wrong password
+        pass
+    except AuthError:
+        # Handle other auth errors
+        pass
+    except APIError:
+        # Handle general API errors
+        pass
+    ```
+  </Accordion>
+  
+  <Accordion title="Log errors with context">
+    Include relevant context when logging errors:
+    
+    ```python
+    except APIError as e:
+        logger.error(
+            f"Failed to generate image: {e.msg}",
+            extra={"prompt": prompt, "model_id": model_id}
+        )
+    ```
+  </Accordion>
+  
+  <Accordion title="Don't swallow exceptions">
+    Avoid catching exceptions without handling them:
+    
+    ```python
+    # Bad
+    try:
+        client.tasks.txt2img(...)
+    except Exception:
+        pass  # Silent failure!
+    
+    # Good
+    try:
+        client.tasks.txt2img(...)
+    except APIError as e:
+        logger.error(f"Task creation failed: {e}")
+        raise  # Re-raise after logging
+    ```
+  </Accordion>
+  
+  <Accordion title="Implement retry logic for transient errors">
+    Retry server errors and network issues:
+    
+    ```python
+    from seaart.exceptions import ServerError
+    import time
+    
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            return client.account.me()
+        except ServerError:
+            if attempt < max_retries - 1:
+                time.sleep(2 ** attempt)
+            else:
+                raise
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Error Code Reference
+
+Common SeaArt API error codes:
+
+| Code | Exception | Description |
+|------|-----------|-------------|
+| 10100 | `ParamsError` | Invalid request parameters |
+| 10200 | `ServerError` | Internal server error |
+| 10405 | `ProcessingError` | Server failed to process request |
+| 20000 | `AccountNotLoggedInError` | Account not logged in |
+| 20001 | `AccountNotFoundError` | Account does not exist |
+| 20002 | `AuthTokenInvalidError` | Invalid or expired token |
+| 20005 | `InvalidPasswordError` | Incorrect password |
+| 60003 | `TouristChatNumLimitError` | Guest chat limit exceeded |
+| 70010 | `FeatureRequiresPaymentError` | Feature requires subscription |
+| 70026 | `PromptHaveSensitiveWordsError` | Prompt contains filtered content |
+| 70061 | `ImageCountExceedLimitError` | Too many images requested |
+| 80008 | `BalanceNotEnoughError` | Insufficient account balance |
+| 80318 | `AccountBlockedError` | Account has been blocked |
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="key" href="/concepts/authentication">
+    Learn about authentication methods and token management
+  </Card>
+  <Card title="API Reference" icon="book" href="/api/sync-client">
+    Explore the complete API reference
+  </Card>
+</CardGroup>

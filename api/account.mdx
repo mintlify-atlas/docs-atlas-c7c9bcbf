@@ -1,0 +1,185 @@
+---
+title: "Account"
+description: "Account resource for managing user profile and settings"
+---
+
+# Account
+
+The Account resource manages the authenticated user's profile, settings, and account operations.
+
+**Access:** `client.account`
+
+## Methods
+
+### me
+
+Retrieve information about the authenticated account.
+
+```python
+from seaart import SyncClient
+
+client = SyncClient()
+client.auth.login("user@example.com", "password")
+
+info = client.account.me()
+print(info.value.name, info.value.email)
+```
+
+<ResponseField name="return" type="APIEnvelope[AccountInfo]">
+  Envelope containing account details:
+  - `.value.id` - Account ID
+  - `.value.email` - Email address
+  - `.value.name` - Display name
+  - `.value.avatar` - Avatar URL
+  - Subscription info, preferences, and more
+</ResponseField>
+
+**Location:** `src/seaart/resources/sync/account.py:32`
+
+---
+
+### edit
+
+Edit account profile settings. Only explicitly passed parameters are included in the request.
+
+```python
+# Update nickname
+client.account.edit(nickname="Alice")
+
+# Update avatar
+client.account.edit(avatar_url="https://example.com/avatar.png")
+
+# Update multiple fields
+client.account.edit(
+    nickname="Alice",
+    avatar_url="https://example.com/avatar.png"
+)
+```
+
+<ParamField path="avatar_url" type="str | None" default="None">
+  URL of the new profile avatar image
+</ParamField>
+
+<ParamField path="nickname" type="str | None" default="None">
+  Account display name
+</ParamField>
+
+<ParamField path="home_set" type="HomeSet | None" default="None">
+  Home page settings (bio, background image, gender display, etc.). Pass a `HomeSet` instance.
+</ParamField>
+
+<ParamField path="overview" type="OverviewSettings | None" default="None">
+  Controls which sections are visible on the profile overview. Pass an `OverviewSettings` instance.
+</ParamField>
+
+<ResponseField name="return" type="APIEnvelope[EditAccountStatus]">
+  Status response:
+  - `.value.status` - `1` on success
+</ResponseField>
+
+**Location:** `src/seaart/resources/sync/account.py:47`
+
+---
+
+### settings
+
+Update account preference settings. Only explicitly passed parameters are included in the request.
+
+```python
+# Enable auto-save artwork
+client.account.settings(auto_save_artwork=1)
+
+# Update multiple settings
+client.account.settings(
+    auto_save_artwork=1,
+    ai_video_auto_play=1
+)
+```
+
+<ParamField path="auto_pub_community" type="int | None" default="None">
+  Whether to automatically publish generated content to the community feed
+</ParamField>
+
+<ParamField path="localization" type="int | None" default="None">
+  Localization setting identifier
+</ParamField>
+
+<ParamField path="ai_video_auto_play" type="int | None" default="None">
+  Whether AI-generated videos autoplay
+</ParamField>
+
+<ParamField path="auto_save_artwork" type="int | None" default="None">
+  Whether generated artworks are saved automatically
+</ParamField>
+
+<ParamField path="age_confirm" type="bool | None" default="None">
+  Whether the user has confirmed their age
+</ParamField>
+
+<ParamField path="nsfw_plus" type="int | None" default="None">
+  NSFW content level flag
+</ParamField>
+
+<ParamField path="mode" type="int | None" default="None">
+  Internal API parameter for various options
+</ParamField>
+
+<ResponseField name="return" type="APIEnvelope[None]">
+  Empty envelope indicating successful update
+</ResponseField>
+
+**Location:** `src/seaart/resources/sync/account.py:86`
+
+---
+
+### update_password
+
+Update the account password.
+
+```python
+client.account.update_password(
+    current_password="old_pass",
+    new_password="new_pass"
+)
+```
+
+<ParamField path="new_password" type="str" required>
+  New password to set
+</ParamField>
+
+<ParamField path="current_password" type="str" required>
+  Current password to confirm the change
+</ParamField>
+
+<ResponseField name="return" type="APIEnvelope[None]">
+  Empty envelope indicating successful password change
+</ResponseField>
+
+**Raises:**
+- `InvalidPasswordError` - If the current password is incorrect
+
+**Location:** `src/seaart/resources/sync/account.py:135`
+
+---
+
+### delete
+
+Delete (cancel) the current account. This action is irreversible.
+
+```python
+client.account.delete("my_username")
+```
+
+<Warning>
+  This action is irreversible. All data associated with the account may be permanently removed.
+</Warning>
+
+<ParamField path="username" type="str" required>
+  Account username, used to confirm the deletion
+</ParamField>
+
+<ResponseField name="return" type="APIEnvelope[None]">
+  Empty envelope indicating successful deletion
+</ResponseField>
+
+**Location:** `src/seaart/resources/sync/account.py:164`

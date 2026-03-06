@@ -1,0 +1,320 @@
+---
+title: Image Generation Workflows
+description: Complete examples for text-to-image, img-to-img, upscaling, and background removal
+---
+
+## Cost Estimation
+
+Check how many coins a generation will cost before running it:
+
+```python
+import os
+from seaart import SyncClient
+from seaart.helpers import extract_model_link
+
+MODEL_URL = "https://www.seaart.ai/create/image?id=cu8d8ble878c738hejd0&model_ver_no=f1ebdcc036b767a672db420eb367688d"
+
+def estimate_cost():
+    """Check how many coins a generation will cost before running it."""
+    model = extract_model_link(MODEL_URL)
+    assert model is not None
+
+    with SyncClient() as client:
+        client.auth.login(
+            email=os.environ["SEAART_EMAIL"],
+            password=os.environ["SEAART_PASSWORD"],
+        )
+
+        est = client.images.estimate(
+            prompt="a serene mountain landscape at sunset, oil painting",
+            model_no=model.model_no,
+            # model_ver_no is optional — resolved automatically from cache if omitted.
+            model_ver_no=model.model_ver_no,
+        )
+        print(f"Estimated cost: {est.value.calculate_coins} coins")
+```
+
+## Text-to-Image
+
+### Single Image Generation
+
+Generate a single image from a text prompt:
+
+```python
+import os
+from seaart import SyncClient
+from seaart.helpers import extract_model_link
+
+MODEL_URL = "https://www.seaart.ai/create/image?id=cu8d8ble878c738hejd0&model_ver_no=f1ebdcc036b767a672db420eb367688d"
+
+def text_to_image():
+    """Generate a single image from a text prompt."""
+    model = extract_model_link(MODEL_URL)
+    assert model is not None
+
+    with SyncClient() as client:
+        client.auth.login(
+            email=os.environ["SEAART_EMAIL"],
+            password=os.environ["SEAART_PASSWORD"],
+        )
+
+        envelope = client.images.text_to_img(
+            prompt="a serene mountain landscape at sunset, oil painting",
+            model_no=model.model_no,
+            model_ver_no=model.model_ver_no,
+        )
+        print(f"Task submitted: {envelope.value.id}")
+
+        # .wait() polls until the task finishes and returns a TaskItem.
+        item = envelope.wait(timeout=120)
+        print(f"Image URL: {item.image_url}")
+```
+
+### Key Points
+
+- `extract_model_link()` parses model IDs from SeaArt URLs
+- `text_to_img()` returns a `TaskEnvelope` immediately
+- Call `.wait(timeout=seconds)` to poll until generation completes
+- Access the result via `item.image_url`
+
+### Batch Generation
+
+Generate multiple images in a single task:
+
+```python
+import os
+from seaart import SyncClient
+from seaart.helpers import extract_model_link
+
+MODEL_URL = "https://www.seaart.ai/create/image?id=cu8d8ble878c738hejd0&model_ver_no=f1ebdcc036b767a672db420eb367688d"
+
+def text_to_image_batch():
+    """Generate multiple images in a single task."""
+    model = extract_model_link(MODEL_URL)
+    assert model is not None
+
+    with SyncClient() as client:
+        client.auth.login(
+            email=os.environ["SEAART_EMAIL"],
+            password=os.environ["SEAART_PASSWORD"],
+        )
+
+        envelope = client.images.text_to_img(
+            prompt="cyberpunk cityscape, neon lights, rain",
+            model_no=model.model_no,
+            num_images=2,
+        )
+        item = envelope.wait(timeout=180)
+
+        # .image_urls contains all generated images.
+        for url in item.image_urls:
+            print(f"Image: {url}")
+```
+
+<Note>
+Batch generation uses more coins but is faster than running separate tasks.
+</Note>
+
+## Image-to-Image
+
+Transform an existing image with a text prompt:
+
+```python
+import os
+from seaart import SyncClient
+from seaart.helpers import extract_model_link
+
+MODEL_URL = "https://www.seaart.ai/create/image?id=cu8d8ble878c738hejd0&model_ver_no=f1ebdcc036b767a672db420eb367688d"
+
+def image_to_image():
+    """Transform an existing image with a text prompt.
+    
+    strength controls how much the output differs from the input:
+    low values (0.1–0.3) preserve more of the original,
+    high values (0.7–1.0) allow greater creative freedom.
+    """
+    model = extract_model_link(MODEL_URL)
+    assert model is not None
+
+    with SyncClient() as client:
+        client.auth.login(
+            email=os.environ["SEAART_EMAIL"],
+            password=os.environ["SEAART_PASSWORD"],
+        )
+
+        # Upload a local image first (or use an existing URL).
+        uploaded = client.images.upload(path="input.jpg")
+        image_url = uploaded.value.url
+
+        envelope = client.images.img_to_img(
+            prompt="same scene but in watercolor style",
+            model_no=model.model_no,
+            image_url=image_url,
+            strength=0.45,
+        )
+        item = envelope.wait(timeout=120)
+        print(f"Result: {item.image_url}")
+```
+
+### Strength Parameter
+
+| Value | Effect |
+|-------|--------|
+| 0.1–0.3 | Minimal changes, preserves original |
+| 0.4–0.6 | Balanced transformation |
+| 0.7–1.0 | Major creative changes |
+
+## Upscaling
+
+Upscale a generated image to higher resolution:
+
+```python
+import os
+from seaart import SyncClient
+from seaart.helpers import extract_model_link
+
+MODEL_URL = "https://www.seaart.ai/create/image?id=cu8d8ble878c738hejd0&model_ver_no=f1ebdcc036b767a672db420eb367688d"
+
+def upscale_image():
+    """Upscale a generated image to higher resolution."""
+    model = extract_model_link(MODEL_URL)
+    assert model is not None
+
+    with SyncClient() as client:
+        client.auth.login(
+            email=os.environ["SEAART_EMAIL"],
+            password=os.environ["SEAART_PASSWORD"],
+        )
+
+        # Generate an image first.
+        envelope = client.images.text_to_img(
+            prompt="a detailed portrait of a knight",
+            model_no=model.model_no,
+        )
+        item = envelope.wait(timeout=120)
+
+        # Upscale it.
+        assert item.image_url is not None
+        upscale_envelope = client.images.upscale(image_url=item.image_url)
+        upscaled = upscale_envelope.wait(timeout=120)
+        print(f"Upscaled: {upscaled.image_url}")
+```
+
+## Background Removal
+
+Remove the background from an image:
+
+```python
+import os
+from seaart import SyncClient
+
+def remove_background():
+    """Remove the background from an image."""
+    with SyncClient() as client:
+        client.auth.login(
+            email=os.environ["SEAART_EMAIL"],
+            password=os.environ["SEAART_PASSWORD"],
+        )
+
+        uploaded = client.images.upload(path="photo.jpg")
+        envelope = client.images.remove_bg(image_url=uploaded.value.url)
+        item = envelope.wait(timeout=60)
+        print(f"Result: {item.image_url}")
+```
+
+## Artwork Details & Download
+
+Fetch full artwork info and get a direct download URL:
+
+```python
+import os
+from seaart import SyncClient
+from seaart.helpers import extract_model_link
+
+MODEL_URL = "https://www.seaart.ai/create/image?id=cu8d8ble878c738hejd0&model_ver_no=f1ebdcc036b767a672db420eb367688d"
+
+def artwork_details():
+    """Fetch full artwork info and get a direct download URL."""
+    with SyncClient() as client:
+        client.auth.login(
+            email=os.environ["SEAART_EMAIL"],
+            password=os.environ["SEAART_PASSWORD"],
+        )
+
+        model = extract_model_link(MODEL_URL)
+        assert model is not None
+
+        envelope = client.images.text_to_img(
+            prompt="a fox in autumn forest",
+            model_no=model.model_no,
+        )
+        item = envelope.wait(timeout=120)
+
+        # Fetch detailed artwork metadata.
+        details = client.images.detail(item.task_id)
+        print(f"Model used: {details.value.art_model_name}")
+        for uri in details.value.img_uris or []:
+            print(f"  {uri.url}")
+
+        # Get a direct download link.
+        assert item.image_url is not None
+        download = client.images.get_download_url(item.image_url)
+        print(f"Download: {download.value.url}")
+```
+
+## Complete Workflow Example
+
+A full workflow combining multiple operations:
+
+```python
+import os
+from seaart import SyncClient
+from seaart.helpers import extract_model_link
+
+MODEL_URL = "https://www.seaart.ai/create/image?id=cu8d8ble878c738hejd0&model_ver_no=f1ebdcc036b767a672db420eb367688d"
+
+def complete_workflow():
+    """Generate, transform, and upscale an image."""
+    model = extract_model_link(MODEL_URL)
+    assert model is not None
+
+    with SyncClient() as client:
+        client.auth.login(
+            email=os.environ["SEAART_EMAIL"],
+            password=os.environ["SEAART_PASSWORD"],
+        )
+
+        # Step 1: Generate base image
+        print("Generating base image...")
+        envelope = client.images.text_to_img(
+            prompt="a fantasy castle on a cliff, dramatic lighting",
+            model_no=model.model_no,
+        )
+        base_image = envelope.wait(timeout=120)
+        print(f"Base: {base_image.image_url}")
+
+        # Step 2: Transform style
+        print("Transforming style...")
+        assert base_image.image_url is not None
+        style_envelope = client.images.img_to_img(
+            prompt="same castle but watercolor painting style",
+            model_no=model.model_no,
+            image_url=base_image.image_url,
+            strength=0.5,
+        )
+        styled_image = style_envelope.wait(timeout=120)
+        print(f"Styled: {styled_image.image_url}")
+
+        # Step 3: Upscale final result
+        print("Upscaling...")
+        assert styled_image.image_url is not None
+        upscale_envelope = client.images.upscale(image_url=styled_image.image_url)
+        final_image = upscale_envelope.wait(timeout=120)
+        print(f"Final: {final_image.image_url}")
+```
+
+## Next Steps
+
+- [Async Usage](/examples/async-usage) for concurrent image generation
+- [API Reference](/api/images) for all image generation methods
+- [Custom Requests](/examples/custom-requests) for advanced API access

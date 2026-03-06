@@ -1,0 +1,436 @@
+---
+title: "Sync vs Async"
+description: "Choose between synchronous and asynchronous clients for your use case"
+---
+
+## Overview
+
+The SeaArt SDK provides two client types:
+
+- **`SyncClient`** - Synchronous (blocking) API calls
+- **`AsyncClient`** - Asynchronous (non-blocking) API calls using `asyncio`
+
+Both clients provide **identical APIs** with the same methods, parameters, and return types. The only difference is that `AsyncClient` methods are async and must be awaited.
+
+## When to Use Each
+
+<CardGroup cols={2}>
+  <Card title="Use SyncClient" icon="arrow-right">
+    - Simple scripts and CLI tools
+    - Synchronous workflows
+    - Learning and prototyping
+    - Single-threaded applications
+  </Card>
+  
+  <Card title="Use AsyncClient" icon="bolt">
+    - Web servers and APIs (FastAPI, aiohttp)
+    - High-concurrency applications
+    - Processing multiple requests in parallel
+    - Event-driven architectures
+  </Card>
+</CardGroup>
+
+## Identical API Surface
+
+Every method available on `SyncClient` has an async equivalent on `AsyncClient`. The method signatures, parameters, and return types are identical:
+
+<CodeGroup>
+```python Sync
+from seaart import SyncClient
+
+client = SyncClient()
+
+# Login
+session = client.auth.login("user@example.com", "password")
+
+# Get account info
+me = client.account.me()
+print(f"Username: {me.value.username}")
+
+# Generate image
+task = client.tasks.txt2img(
+    prompt="A beautiful sunset",
+    model_id="1234",
+)
+print(f"Task ID: {task.value.task_id}")
+```
+
+```python Async
+from seaart import AsyncClient
+import asyncio
+
+async def main():
+    client = AsyncClient()
+    
+    # Login (awaited)
+    session = await client.auth.login("user@example.com", "password")
+    
+    # Get account info (awaited)
+    me = await client.account.me()
+    print(f"Username: {me.value.username}")
+    
+    # Generate image (awaited)
+    task = await client.tasks.txt2img(
+        prompt="A beautiful sunset",
+        model_id="1234",
+    )
+    print(f"Task ID: {task.value.task_id}")
+    
+    await client.close()
+
+asyncio.run(main())
+```
+</CodeGroup>
+
+<Note>
+The only difference is adding `await` before each method call and using `async def` for the function.
+</Note>
+
+## Context Managers
+
+Both clients support context managers for automatic resource cleanup:
+
+<CodeGroup>
+```python Sync
+from seaart import SyncClient
+
+with SyncClient(token="abc123") as client:
+    info = client.account.me()
+    print(info.value.username)
+# Client automatically closed
+```
+
+```python Async
+from seaart import AsyncClient
+import asyncio
+
+async def main():
+    async with AsyncClient(token="abc123") as client:
+        info = await client.account.me()
+        print(info.value.username)
+    # Client automatically closed
+
+asyncio.run(main())
+```
+</CodeGroup>
+
+## Performance Comparison
+
+### Sequential Operations
+
+For single operations, both clients have similar performance:
+
+<CodeGroup>
+```python Sync
+from seaart import SyncClient
+import time
+
+client = SyncClient(token="abc123")
+start = time.time()
+
+# One request at a time
+for i in range(5):
+    task = client.tasks.txt2img(
+        prompt=f"Image {i}",
+        model_id="1234",
+    )
+    print(f"Task {i}: {task.value.task_id}")
+
+print(f"Time: {time.time() - start:.2f}s")
+```
+
+```python Async (Sequential)
+import asyncio
+from seaart import AsyncClient
+import time
+
+async def main():
+    client = AsyncClient(token="abc123")
+    start = time.time()
+    
+    # One request at a time (awaited sequentially)
+    for i in range(5):
+        task = await client.tasks.txt2img(
+            prompt=f"Image {i}",
+            model_id="1234",
+        )
+        print(f"Task {i}: {task.value.task_id}")
+    
+    print(f"Time: {time.time() - start:.2f}s")
+    await client.close()
+
+asyncio.run(main())
+```
+</CodeGroup>
+
+### Concurrent Operations
+
+`AsyncClient` shines when making multiple requests concurrently:
+
+```python Async (Concurrent)
+import asyncio
+from seaart import AsyncClient
+import time
+
+async def generate_image(client, i):
+    task = await client.tasks.txt2img(
+        prompt=f"Image {i}",
+        model_id="1234",
+    )
+    return task.value.task_id
+
+async def main():
+    async with AsyncClient(token="abc123") as client:
+        start = time.time()
+        
+        # All 5 requests run concurrently
+        tasks = await asyncio.gather(*[
+            generate_image(client, i) for i in range(5)
+        ])
+        
+        for i, task_id in enumerate(tasks):
+            print(f"Task {i}: {task_id}")
+        
+        print(f"Time: {time.time() - start:.2f}s")  # Much faster!
+
+asyncio.run(main())
+```
+
+<Tip>
+For I/O-bound operations like API calls, `AsyncClient` with concurrency can be **5-10x faster** than sequential execution.
+</Tip>
+
+## Switching Between Clients
+
+Since both clients have identical APIs, switching between them is straightforward:
+
+```python
+# Just change the import and add await
+# from seaart import SyncClient as Client
+from seaart import AsyncClient as Client
+
+# The rest of your code stays the same!
+```
+
+## Common Patterns
+
+### SyncClient Patterns
+
+<AccordionGroup>
+  <Accordion title="Simple Script">
+    ```python
+    from seaart import SyncClient
+    
+    def main():
+        with SyncClient(token="abc123") as client:
+            # Login
+            session = client.auth.login("user@example.com", "password")
+            
+            # Do work
+            me = client.account.me()
+            print(me.value.username)
+    
+    if __name__ == "__main__":
+        main()
+    ```
+  </Accordion>
+  
+  <Accordion title="Command Line Tool">
+    ```python
+    import argparse
+    from seaart import SyncClient
+    
+    def cli():
+        parser = argparse.ArgumentParser()
+        parser.add_argument("--prompt", required=True)
+        args = parser.parse_args()
+        
+        client = SyncClient(token="abc123")
+        task = client.tasks.txt2img(
+            prompt=args.prompt,
+            model_id="1234",
+        )
+        print(f"Task created: {task.value.task_id}")
+    
+    if __name__ == "__main__":
+        cli()
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### AsyncClient Patterns
+
+<AccordionGroup>
+  <Accordion title="FastAPI Integration">
+    ```python
+    from fastapi import FastAPI, Depends
+    from seaart import AsyncClient
+    
+    app = FastAPI()
+    
+    async def get_client():
+        client = AsyncClient(token="abc123")
+        try:
+            yield client
+        finally:
+            await client.close()
+    
+    @app.post("/generate")
+    async def generate(prompt: str, client: AsyncClient = Depends(get_client)):
+        task = await client.tasks.txt2img(
+            prompt=prompt,
+            model_id="1234",
+        )
+        return {"task_id": task.value.task_id}
+    ```
+  </Accordion>
+  
+  <Accordion title="Batch Processing">
+    ```python
+    import asyncio
+    from seaart import AsyncClient
+    
+    async def process_batch(prompts: list[str]):
+        async with AsyncClient(token="abc123") as client:
+            # Process all prompts concurrently
+            tasks = await asyncio.gather(*[
+                client.tasks.txt2img(prompt=p, model_id="1234")
+                for p in prompts
+            ])
+            return [t.value.task_id for t in tasks]
+    
+    # Usage
+    prompts = ["Sunset", "Mountain", "Ocean", "Forest"]
+    task_ids = asyncio.run(process_batch(prompts))
+    print(f"Created {len(task_ids)} tasks")
+    ```
+  </Accordion>
+  
+  <Accordion title="Streaming Responses">
+    ```python
+    import asyncio
+    from seaart import AsyncClient
+    
+    async def stream_chat():
+        async with AsyncClient(token="abc123") as client:
+            async for chunk in client.characters.chat_stream(
+                character_id="char123",
+                message="Hello!",
+            ):
+                if chunk.event == "message":
+                    print(chunk.data.content, end="", flush=True)
+    
+    asyncio.run(stream_chat())
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Error Handling
+
+Error handling is identical for both clients:
+
+<CodeGroup>
+```python Sync
+from seaart import SyncClient
+from seaart.exceptions import APIError, AuthError
+
+client = SyncClient()
+
+try:
+    session = client.auth.login("user@example.com", "password")
+except AuthError as e:
+    print(f"Authentication failed: {e}")
+except APIError as e:
+    print(f"API error: {e.http_status} - {e.msg}")
+```
+
+```python Async
+from seaart import AsyncClient
+from seaart.exceptions import APIError, AuthError
+import asyncio
+
+async def main():
+    client = AsyncClient()
+    
+    try:
+        session = await client.auth.login("user@example.com", "password")
+    except AuthError as e:
+        print(f"Authentication failed: {e}")
+    except APIError as e:
+        print(f"API error: {e.http_status} - {e.msg}")
+    
+    await client.close()
+
+asyncio.run(main())
+```
+</CodeGroup>
+
+See [Error Handling](/concepts/error-handling) for more details.
+
+## Testing
+
+Both clients can be easily mocked for testing:
+
+<CodeGroup>
+```python Sync Testing
+from unittest.mock import Mock, patch
+from seaart import SyncClient
+
+def test_get_account():
+    with patch.object(SyncClient, 'account') as mock_account:
+        mock_account.me.return_value.value.username = "testuser"
+        
+        client = SyncClient()
+        result = client.account.me()
+        
+        assert result.value.username == "testuser"
+```
+
+```python Async Testing
+import pytest
+from unittest.mock import AsyncMock, patch
+from seaart import AsyncClient
+
+@pytest.mark.asyncio
+async def test_get_account():
+    with patch.object(AsyncClient, 'account') as mock_account:
+        mock_account.me = AsyncMock()
+        mock_account.me.return_value.value.username = "testuser"
+        
+        client = AsyncClient()
+        result = await client.account.me()
+        
+        assert result.value.username == "testuser"
+```
+</CodeGroup>
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Use context managers" icon="brackets-curly">
+    Always use `with` or `async with` to ensure proper cleanup
+  </Card>
+  
+  <Card title="Choose based on use case" icon="lightbulb">
+    Use `SyncClient` for scripts, `AsyncClient` for servers
+  </Card>
+  
+  <Card title="Leverage concurrency" icon="gauge-high">
+    Use `asyncio.gather()` to run multiple async operations in parallel
+  </Card>
+  
+  <Card title="Don't mix sync and async" icon="ban">
+    Avoid calling sync code from async contexts (use `asyncio.to_thread()` if needed)
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="key" href="/concepts/authentication">
+    Learn how to authenticate with the API
+  </Card>
+  <Card title="Error Handling" icon="triangle-exclamation" href="/concepts/error-handling">
+    Handle API errors and exceptions properly
+  </Card>
+</CardGroup>

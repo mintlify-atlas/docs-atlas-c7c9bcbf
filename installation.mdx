@@ -1,0 +1,197 @@
+---
+title: "Installation"
+description: "Install the SeaArt Python SDK in your project"
+---
+
+# Installation
+
+The SeaArt SDK is available on PyPI and can be installed using your preferred Python package manager.
+
+## Requirements
+
+<Note>
+  **Python 3.11 or higher** is required. The SDK uses modern Python features and type hints.
+</Note>
+
+Before installing, ensure your Python version meets the requirement:
+
+```bash
+python --version  # Should be 3.11.0 or higher
+```
+
+## Install with pip
+
+The simplest way to install the SDK is using pip:
+
+<CodeGroup>
+
+```bash pip
+pip install seaart
+```
+
+```bash uv
+uv pip install seaart
+```
+
+```bash poetry
+poetry add seaart
+```
+
+</CodeGroup>
+
+## Dependencies
+
+The SDK has two core dependencies that are installed automatically:
+
+- **curl-cffi** (version 0.13.0 or higher) - High-performance HTTP client with HTTP/2, HTTP/3, and browser impersonation
+- **pydantic** (version 2.0 or higher, below 3.0) - Data validation and settings management using Python type annotations
+
+<Info>
+  The curl-cffi library provides advanced networking capabilities, including browser impersonation to bypass certain restrictions. This ensures reliable API access.
+</Info>
+
+## Development Installation
+
+If you want to contribute to the SDK or run the examples, you can install the development dependencies:
+
+<CodeGroup>
+
+```bash Clone & Install
+# Clone the repository
+git clone https://github.com/delafault/seaart.git
+cd seaart
+
+# Install with development dependencies
+pip install -e ".[dev]"
+```
+
+```bash uv
+# Clone the repository
+git clone https://github.com/delafault/seaart.git
+cd seaart
+
+# Install with uv
+uv pip install -e . --group dev
+```
+
+</CodeGroup>
+
+Development dependencies include:
+- **pytest** - Testing framework
+- **mypy** - Static type checker
+- **ruff** - Fast Python linter and formatter
+- **pre-commit** - Git hook framework for code quality
+
+## Verify Installation
+
+Verify that the SDK is installed correctly:
+
+```python
+import seaart
+print(seaart.__version__)  # Should print version number (e.g., 0.1.0)
+```
+
+Or check the client imports:
+
+```python
+from seaart import SyncClient, AsyncClient
+
+print("SeaArt SDK installed successfully!")
+```
+
+## Environment Setup (Optional)
+
+For production use, it's recommended to store your credentials in environment variables:
+
+```bash .env
+SEAART_EMAIL=your.email@example.com
+SEAART_PASSWORD=your_password
+SEAART_TOKEN=your_token_if_you_have_one
+```
+
+<Warning>
+  Never commit your `.env` file or credentials to version control. Add `.env` to your `.gitignore` file.
+</Warning>
+
+Load environment variables in your code:
+
+```python
+import os
+from seaart import SyncClient
+
+with SyncClient() as client:
+    client.auth.login(
+        email=os.environ["SEAART_EMAIL"],
+        password=os.environ["SEAART_PASSWORD"],
+    )
+```
+
+## Troubleshooting
+
+### Python Version Issues
+
+If you encounter errors about Python version compatibility:
+
+```bash
+# Check your Python version
+python --version
+
+# If you have multiple Python versions, use python3.11 explicitly
+python3.11 -m pip install seaart
+```
+
+### curl-cffi Installation Issues
+
+If curl-cffi fails to install, ensure you have the required system dependencies:
+
+<CodeGroup>
+
+```bash Ubuntu/Debian
+sudo apt-get update
+sudo apt-get install -y libcurl4-openssl-dev libssl-dev
+```
+
+```bash macOS
+brew install curl openssl
+```
+
+```bash Windows
+# Windows typically works out of the box
+# If issues persist, install Visual C++ Build Tools
+```
+
+</CodeGroup>
+
+### Import Errors
+
+If you get `ModuleNotFoundError: No module named 'seaart'`:
+
+1. Ensure you're using the correct Python environment
+2. Reinstall the package: `pip install --force-reinstall seaart`
+3. Check that pip is installing to the correct location: `pip show seaart`
+
+## Next Steps
+
+<Card title="Quickstart Guide" icon="rocket" href="/quickstart">
+  Now that you have the SDK installed, follow the quickstart guide to send your first chat message and generate your first image.
+</Card>
+
+## Upgrading
+
+To upgrade to the latest version of the SDK:
+
+<CodeGroup>
+
+```bash pip
+pip install --upgrade seaart
+```
+
+```bash uv
+uv pip install --upgrade seaart
+```
+
+```bash poetry
+poetry update seaart
+```
+
+</CodeGroup>

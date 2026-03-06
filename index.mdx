@@ -1,97 +1,173 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: "SeaArt Python SDK"
+description: "Unofficial typed Python client for the SeaArt.ai API with sync and async support"
 ---
 
-## Setting up
+<div className="mb-8">
+  <div className="text-center mb-6">
+    <h1 className="text-5xl font-bold mb-4" style={{ color: "#94cb04" }}>
+      SeaArt Python SDK
+    </h1>
+    <p className="text-xl text-gray-600 mb-6">
+      Unofficial typed Python client for the SeaArt.ai API with sync and async support
+    </p>
+  </div>
 
-Get your documentation site up and running in minutes.
+  <div className="flex justify-center gap-4 mb-8">
+    <a href="https://pypi.org/project/seaart/" className="inline-flex items-center px-4 py-2 rounded-md" style={{ backgroundColor: "#e6e6e6", color: "#1a1a1a" }}>
+      <span className="font-semibold">PyPI</span>
+    </a>
+    <a href="https://github.com/Delafault/seaart" className="inline-flex items-center px-4 py-2 rounded-md" style={{ backgroundColor: "#e6e6e6", color: "#1a1a1a" }}>
+      <span className="font-semibold">GitHub</span>
+    </a>
+  </div>
+</div>
 
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
+## Quick Start
 
-## Make it yours
+Get started with SeaArt SDK in minutes:
 
-Design a docs site that looks great and empowers your users.
+<CodeGroup>
 
-<Columns cols={2}>
+```bash pip
+pip install seaart
+```
+
+```bash uv
+uv add seaart
+```
+
+</CodeGroup>
+
+```python
+from seaart import SyncClient
+
+with SyncClient() as client:
+    client.auth.login(email="user@example.com", password="password")
+    
+    # Chat with characters
+    chat = client.characters.chats.create(character_id)
+    result = client.characters.chats.send("Hello!", chat.value.session_id)
+    print(result.text)
+```
+
+<CardGroup cols={2}>
   <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
+    title="Installation"
+    icon="download"
+    href="/installation"
   >
-    Edit your docs locally and preview them in real time.
+    Install the SDK with pip or your favorite package manager
   </Card>
   <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
+    title="Quickstart"
+    icon="rocket"
+    href="/quickstart"
   >
-    Customize the design and colors of your site to match your brand.
-  </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
+    Get up and running with your first API call
   </Card>
   <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
+    title="Character Chat"
+    icon="comments"
+    href="/guides/character-chat"
   >
-    Auto-generate API documentation from OpenAPI specifications.
-  </Card>
-</Columns>
-
-## Create beautiful pages
-
-Everything you need to create world-class documentation.
-
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
+    Learn how to chat with AI characters
   </Card>
   <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card
-    title="Images"
+    title="Image Generation"
     icon="image"
-    href="/essentials/images"
+    href="/guides/image-generation"
   >
-    Display images and other media.
+    Generate images with text-to-image and more
+  </Card>
+</CardGroup>
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="Sync & Async Clients" icon="arrows-split-up-and-left">
+    Identical APIs for both synchronous and asynchronous programming
+  </Card>
+  <Card title="Fully Typed" icon="code">
+    Complete type safety with Pydantic v2 models
+  </Card>
+  <Card title="SSE Streaming" icon="stream">
+    Real-time streaming for character chat and GenAgent
+  </Card>
+  <Card title="Task Polling" icon="clock">
+    Simple task monitoring with envelope.wait()
+  </Card>
+  <Card title="Character Chat" icon="messages">
+    Chat with AI characters with history management
+  </Card>
+  <Card title="Image Generation" icon="paintbrush">
+    Text-to-image, img-to-img, upscaling, and background removal
+  </Card>
+  <Card title="Search" icon="magnifying-glass">
+    Search characters, models, and works
+  </Card>
+  <Card title="Modern HTTP" icon="bolt">
+    Built on curl-cffi with HTTP/2 and HTTP/3 support
+  </Card>
+</CardGroup>
+
+## Core Concepts
+
+<CardGroup cols={3}>
+  <Card
+    title="Authentication"
+    icon="lock"
+    href="/concepts/authentication"
+  >
+    Learn about login methods and tourist mode
   </Card>
   <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
+    title="Sync vs Async"
+    icon="arrows-rotate"
+    href="/concepts/sync-vs-async"
   >
-    Write once and reuse across your docs.
+    Choose the right client for your use case
   </Card>
-</Columns>
+  <Card
+    title="Error Handling"
+    icon="triangle-exclamation"
+    href="/concepts/error-handling"
+  >
+    Handle exceptions and API errors gracefully
+  </Card>
+</CardGroup>
 
-## Need inspiration?
+## API Reference
 
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+Explore the complete API documentation:
+
+<CardGroup cols={2}>
+  <Card
+    title="SyncClient"
+    icon="code"
+    href="/api/sync-client"
+  >
+    Synchronous client API reference
+  </Card>
+  <Card
+    title="AsyncClient"
+    icon="code"
+    href="/api/async-client"
+  >
+    Asynchronous client API reference
+  </Card>
+  <Card
+    title="Resources"
+    icon="folder-tree"
+    href="/api/auth"
+  >
+    Auth, characters, images, and more
+  </Card>
+  <Card
+    title="Helpers & Types"
+    icon="wrench"
+    href="/api/helpers"
+  >
+    Utility functions and type definitions
+  </Card>
+</CardGroup>

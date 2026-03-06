@@ -1,0 +1,451 @@
+---
+title: GenAgent
+description: Use SeaArt's general-purpose AI assistant with streaming and image attachments
+---
+
+GenAgent is SeaArt's general-purpose AI assistant. Unlike character chat, it is not tied to a specific persona and supports image attachments for visual context.
+
+<Note>
+GenAgent conversations are perfect for creative tasks like generating prompts, analyzing images, and getting AI assistance.
+</Note>
+
+## Basic Usage
+
+Create a conversation and send messages.
+
+<Steps>
+  <Step title="Create Conversation">
+    Initialize a new GenAgent conversation:
+
+    ```python
+    from seaart import SyncClient
+
+    with SyncClient() as client:
+        client.auth.login(
+            email="your-email@example.com",
+            password="your-password",
+        )
+
+        conv = client.genagent.create()
+        conv_id = conv.value.conv_id
+    ```
+  </Step>
+
+  <Step title="Send Message">
+    Send a message and get the complete response:
+
+    ```python
+    try:
+        result = client.genagent.messages.send(
+            "What makes a good portrait photograph?",
+            conv_id,
+        )
+        if result:
+            print(result.text)
+    finally:
+        client.genagent.delete(conv_id)
+    ```
+  </Step>
+</Steps>
+
+### Complete Example
+
+```python
+from seaart import SyncClient
+import os
+
+with SyncClient() as client:
+    client.auth.login(
+        email=os.environ["SEAART_EMAIL"],
+        password=os.environ["SEAART_PASSWORD"],
+    )
+
+    conv = client.genagent.create()
+    conv_id = conv.value.conv_id
+
+    try:
+        result = client.genagent.messages.send(
+            "Generate a creative prompt for a fantasy character portrait.",
+            conv_id,
+        )
+        if result:
+            print(result.text)
+    finally:
+        client.genagent.delete(conv_id)
+```
+
+## Streaming Responses
+
+Stream GenAgent responses in real-time for interactive experiences:
+
+```python
+conv = client.genagent.create()
+conv_id = conv.value.conv_id
+
+try:
+    for item in client.genagent.messages.stream(
+        "Write a prompt for the character Amelia Watson.",
+        conv_id,
+    ):
+        if item.event == "message":
+            print(item.text, end="", flush=True)
+    print()
+finally:
+    client.genagent.delete(conv_id)
+```
+
+### Event Types
+
+GenAgent streaming yields events:
+
+| Event | Description | Fields |
+|-------|-------------|--------|
+| `"message"` | Text chunk from AI | `.text` - content chunk |
+| `"done"` | Streaming complete | Metadata fields |
+
+### Building an Interactive Loop
+
+```python
+import sys
+
+def genagent_loop(client):
+    """Interactive GenAgent conversation loop."""
+    conv = client.genagent.create()
+    conv_id = conv.value.conv_id
+
+    try:
+        print("GenAgent Ready (type 'quit' to exit)\n")
+
+        while True:
+            user_input = input("You: ").strip()
+            if not user_input or user_input.lower() in ["quit", "exit"]:
+                break
+
+            print("GenAgent: ", end="", flush=True)
+
+            for item in client.genagent.messages.stream(
+                user_input,
+                conv_id,
+            ):
+                if item.event == "message":
+                    print(item.text, end="", flush=True)
+
+            print("\n")
+
+    finally:
+        client.genagent.delete(conv_id)
+
+# Usage
+with SyncClient() as client:
+    client.auth.login(
+        email="your-email@example.com",
+        password="your-password",
+    )
+    genagent_loop(client)
+```
+
+## Image Attachments
+
+Attach images to provide visual context for your questions.
+
+### Single Image
+
+```python
+from seaart.options import GenAgentReqOptions
+from seaart.options.gen_agent_messages import ImagePartOptions
+
+conv = client.genagent.create()
+conv_id = conv.value.conv_id
+
+try:
+    result = client.genagent.messages.send(
+        "How can I generate something like this?",
+        conv_id,
+        options=GenAgentReqOptions(
+            images=[
+                ImagePartOptions(
+                    url="https://www.seaart.ai/images/1a2b3c4d5e/abc123.jpg",
+                )
+            ]
+        ),
+    )
+    if result:
+        print(result.text)
+finally:
+    client.genagent.delete(conv_id)
+```
+
+### Multiple Images
+
+Analyze and compare multiple images:
+
+```python
+from seaart.options import GenAgentReqOptions
+from seaart.options.gen_agent_messages import ImagePartOptions
+
+conv = client.genagent.create()
+conv_id = conv.value.conv_id
+
+try:
+    result = client.genagent.messages.send(
+        "Compare these images and describe the differences in style.",
+        conv_id,
+        options=GenAgentReqOptions(
+            images=[
+                ImagePartOptions(url="https://example.com/image1.jpg"),
+                ImagePartOptions(url="https://example.com/image2.jpg"),
+                ImagePartOptions(url="https://example.com/image3.jpg"),
+            ]
+        ),
+    )
+    if result:
+        print(result.text)
+finally:
+    client.genagent.delete(conv_id)
+```
+
+### Streaming with Images
+
+Combine image attachments with streaming:
+
+```python
+conv = client.genagent.create()
+conv_id = conv.value.conv_id
+
+try:
+    for item in client.genagent.messages.stream(
+        "Describe this image in detail and suggest improvements.",
+        conv_id,
+        options=GenAgentReqOptions(
+            images=[
+                ImagePartOptions(
+                    url="https://example.com/artwork.jpg",
+                )
+            ]
+        ),
+    ):
+        if item.event == "message":
+            print(item.text, end="", flush=True)
+    print()
+finally:
+    client.genagent.delete(conv_id)
+```
+
+## Use Cases
+
+GenAgent excels at various creative and analytical tasks:
+
+<CodeGroup>
+```python Prompt Generation
+result = client.genagent.messages.send(
+    "Generate 5 creative prompts for cyberpunk city scenes.",
+    conv_id,
+)
+print(result.text)
+```
+
+```python Image Analysis
+result = client.genagent.messages.send(
+    "Analyze the composition and lighting of this portrait.",
+    conv_id,
+    options=GenAgentReqOptions(
+        images=[ImagePartOptions(url="portrait.jpg")]
+    ),
+)
+print(result.text)
+```
+
+```python Style Transfer Advice
+result = client.genagent.messages.send(
+    "How can I transform this photo into an oil painting style?",
+    conv_id,
+    options=GenAgentReqOptions(
+        images=[ImagePartOptions(url="photo.jpg")]
+    ),
+)
+print(result.text)
+```
+
+```python Creative Brainstorming
+result = client.genagent.messages.send(
+    "Give me ideas for a fantasy character with unique abilities.",
+    conv_id,
+)
+print(result.text)
+```
+</CodeGroup>
+
+## Conversation Management
+
+### Multiple Conversations
+
+Manage multiple GenAgent conversations:
+
+```python
+# Create multiple conversations
+conv1 = client.genagent.create()
+conv2 = client.genagent.create()
+
+conv1_id = conv1.value.conv_id
+conv2_id = conv2.value.conv_id
+
+try:
+    # Different contexts in parallel
+    result1 = client.genagent.messages.send(
+        "Generate a sci-fi prompt.",
+        conv1_id,
+    )
+
+    result2 = client.genagent.messages.send(
+        "Generate a fantasy prompt.",
+        conv2_id,
+    )
+
+    print(f"Sci-fi: {result1.text}")
+    print(f"Fantasy: {result2.text}")
+finally:
+    client.genagent.delete(conv1_id)
+    client.genagent.delete(conv2_id)
+```
+
+### Conversation Context
+
+GenAgent maintains conversation history automatically:
+
+```python
+conv = client.genagent.create()
+conv_id = conv.value.conv_id
+
+try:
+    # First message
+    result1 = client.genagent.messages.send(
+        "I'm working on a portrait project.",
+        conv_id,
+    )
+    print(result1.text)
+
+    # Follow-up uses context from first message
+    result2 = client.genagent.messages.send(
+        "What lighting setup would you recommend?",
+        conv_id,
+    )
+    print(result2.text)
+
+    # Another follow-up
+    result3 = client.genagent.messages.send(
+        "How about outdoor portraits instead?",
+        conv_id,
+    )
+    print(result3.text)
+finally:
+    client.genagent.delete(conv_id)
+```
+
+## Async Support
+
+All GenAgent methods have async equivalents:
+
+<Tabs>
+  <Tab title="Non-Streaming">
+    ```python
+    from seaart import AsyncClient
+
+    async with AsyncClient() as client:
+        await client.auth.login(
+            email="your-email@example.com",
+            password="your-password",
+        )
+
+        conv = await client.genagent.create()
+        conv_id = conv.value.conv_id
+
+        try:
+            result = await client.genagent.messages.send(
+                "Generate a creative prompt.",
+                conv_id,
+            )
+            if result:
+                print(result.text)
+        finally:
+            await client.genagent.delete(conv_id)
+    ```
+  </Tab>
+
+  <Tab title="Streaming">
+    ```python
+    from seaart import AsyncClient
+
+    async with AsyncClient() as client:
+        await client.auth.login(
+            email="your-email@example.com",
+            password="your-password",
+        )
+
+        conv = await client.genagent.create()
+        conv_id = conv.value.conv_id
+
+        try:
+            async for item in client.genagent.messages.stream(
+                "Write a fantasy prompt.",
+                conv_id,
+            ):
+                if item.event == "message":
+                    print(item.text, end="", flush=True)
+            print()
+        finally:
+            await client.genagent.delete(conv_id)
+    ```
+  </Tab>
+</Tabs>
+
+## Error Handling
+
+Handle errors gracefully:
+
+```python
+from seaart.exceptions import SeaArtAPIError
+
+conv = client.genagent.create()
+conv_id = conv.value.conv_id
+
+try:
+    try:
+        result = client.genagent.messages.send(
+            "Your question here",
+            conv_id,
+        )
+        if result:
+            print(result.text)
+        else:
+            print("No response received")
+
+    except SeaArtAPIError as e:
+        print(f"API Error: {e}")
+
+finally:
+    # Always clean up
+    client.genagent.delete(conv_id)
+```
+
+## GenAgent vs Character Chat
+
+Choose the right tool for your use case:
+
+| Feature | GenAgent | Character Chat |
+|---------|----------|----------------|
+| **Purpose** | General AI assistant | Persona-based roleplay |
+| **Image Support** | Yes | No |
+| **Personality** | Neutral assistant | Character-specific |
+| **Best For** | Analysis, brainstorming, prompts | Interactive stories, roleplay |
+| **Context** | Conversation history | Chat history with memory |
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Streaming" icon="wave-pulse" href="/guides/streaming">
+    Learn more about streaming responses
+  </Card>
+  <Card title="Character Chat" icon="messages" href="/guides/character-chat">
+    Explore persona-based conversations
+  </Card>
+</CardGroup>

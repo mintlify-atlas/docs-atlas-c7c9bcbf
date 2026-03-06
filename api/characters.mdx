@@ -1,0 +1,466 @@
+---
+title: "Characters"
+description: "Character resource for AI character chat and interactions"
+---
+
+# Characters
+
+The Characters resource provides access to AI character chat functionality, including session management, message streaming, and character information.
+
+**Access:** `client.characters`
+
+## Sub-resources
+
+- **`chats`** - Chat sessions and message streaming
+- **`settings`** - Global account-level character settings
+- **`datacards`** - User persona profiles attached to chats
+- **`replies`** - AI-suggested reply recommendations
+
+## Character Methods
+
+### follow
+
+Follow (collect) a character.
+
+```python
+from seaart import SyncClient
+
+client = SyncClient()
+client.auth.login("user@example.com", "password")
+
+result = client.characters.follow("char_abc123")
+follow_id = result.value.id  # Save this for unfollowing later
+```
+
+<ParamField path="character_id" type="str" required>
+  ID of the character to follow
+</ParamField>
+
+<ParamField path="collection_no" type="str | None" default="None">
+  Optional collection to add the character to
+</ParamField>
+
+<ResponseField name="return" type="APIEnvelope[CollectResponse]">
+  Response containing:
+  - `.value.id` - Follow-record ID needed to unfollow later
+</ResponseField>
+
+**Location:** `src/seaart/resources/sync/characters/characters.py:45`
+
+---
+
+### unfollow
+
+Unfollow a previously followed character.
+
+```python
+client.characters.unfollow(follow_id)
+```
+
+<ParamField path="id" type="str" required>
+  Follow-record ID returned by `follow()` (not the character ID)
+</ParamField>
+
+<ResponseField name="return" type="APIEnvelope[CollectResponse]">
+  Response echoing the follow-record ID
+</ResponseField>
+
+**Location:** `src/seaart/resources/sync/characters/characters.py:71`
+
+---
+
+### detail
+
+Fetch detailed information about a character.
+
+```python
+info = client.characters.detail("char_abc123")
+print(info.value.name)
+print(info.value.persona)
+```
+
+<ParamField path="character_id" type="str" required>
+  ID of the character to look up
+</ParamField>
+
+<ResponseField name="return" type="APIEnvelope[CharacterDetail]">
+  Rich object with character metadata:
+  - `.value.name` - Character name
+  - `.value.persona` - Character personality description
+  - `.value.tags` - Associated tags
+  - `.value.follower_count` - Number of followers
+  - Related characters and more
+</ResponseField>
+
+**Location:** `src/seaart/resources/sync/characters/characters.py:94`
+
+---
+
+### models
+
+Fetch the list of available AI models for character chats.
+
+```python
+result = client.characters.models()
+for m in result.value.List:
+    print(f"{m.gpt_model} | {m.title_key}")
+```
+
+<ResponseField name="return" type="APIEnvelope[CharacterListModels]">
+  Available models list:
+  - `.value.List` - List of available models
+  - `.value.functionality_list` - Per-model feature flags
+</ResponseField>
+
+**Location:** `src/seaart/resources/sync/characters/characters.py:119`
+
+---
+
+## Chat Methods
+
+**Access:** `client.characters.chats`
+
+The chats sub-resource manages the full lifecycle of character chat sessions.
+
+### create
+
+Create a new chat session for a character.
+
+```python
+info = client.characters.chats.create("char_abc123")
+session_id = info.value.session_id
+```
+
+<ParamField path="character_id" type="str" required>
+  The character to open a session with
+</ParamField>
+
+<ParamField path="mask" type="str" default='""'>
+  Internal mask parameter forwarded to the API
+</ParamField>
+
+<ResponseField name="return" type="APIEnvelope[CreateChatInfo]">
+  Session information:
+  - `.value.session_id` - New session ID to pass to subsequent calls
+</ResponseField>
+
+**Location:** `src/seaart/resources/sync/characters/characters_chat.py:53`
+
+---
+
+### start
+
+Initialize a chat session and retrieve its configuration.
+
+```python
+info = client.characters.chats.start(session_id)
+print(info.value.enable_memory)
+print(info.value.free_times)
+```
+
+<ParamField path="session_id" type="str" required>
+  The session to initialize
+</ParamField>
+
+<ParamField path="dft_timbre_id" type="str" default='""'>
+  Default voice ID. Pass empty string (default) to use the character's configured voice
+</ParamField>
+
+<ResponseField name="return" type="APIEnvelope[StartChatInfo]">
+  Session configuration including:
+  - `.value.free_times` - Free message quota
+  - `.value.card` - Character card information
+  - `.value.enable_memory` - Memory flag
+</ResponseField>
+
+**Location:** `src/seaart/resources/sync/characters/characters_chat.py:80`
+
+---
+
+### stream
+
+Stream a message to the character and receive chunks in real time.
+
+```python
+for item in client.characters.chats.stream(
+    content="Hello!",
+    session_id=session_id
+):
+    if item.event == "message":
+        print(item.text, end="", flush=True)
+    elif item.event == "end":
+        print(f"\n\nMessage ID: {item.msg_id}")
+```
+
+<ParamField path="content" type="str" required>
+  Message text to send
+</ParamField>
+
+<ParamField path="session_id" type="str" required>
+  Chat session ID
+</ParamField>
+
+<ParamField path="character_name" type="str | None" default="None">
+  Optional character name override
+</ParamField>
+
+<ParamField path="model" type="str" default='Gemini-2.5-Flash-Preview-05-20'>
+  AI model to use for generation
+</ParamField>
+
+<ParamField path="messages" type="Message | None" default="None">
+  Message object for advanced usage
+</ParamField>
+
+<ParamField path="history" type="HistoryInput | None" default="None">
+  Custom chat history
+</ParamField>
+
+<ParamField path="history_server_compat" type="bool" default="True">
+  Use server-compatible history format
+</ParamField>
+
+<ParamField path="vip_only" type="int" default="2">
+  VIP-only flag
+</ParamField>
+
+<ParamField path="support_voice" type="int" default="1">
+  Enable voice synthesis support
+</ParamField>
+
+<ParamField path="refer" type="str" default='v1'>
+  API version reference
+</ParamField>
+
+<ParamField path="stream" type="bool" default="True">
+  Enable streaming mode
+</ParamField>
+
+<ParamField path="ss" type="int | None" default="None">
+  Optional session state parameter
+</ParamField>
+
+<ResponseField name="yields" type="Iterator[StreamItem]">
+  Stream of items:
+  - `StreamItem` with `.event == "message"` and `.text` for content chunks
+  - Final item with `.event == "end"` containing metadata
+</ResponseField>
+
+**Location:** `src/seaart/resources/sync/characters/characters_chat.py:112`
+
+---
+
+### send
+
+Send a message and collect the full response.
+
+```python
+result = client.characters.chats.send(
+    content="Hello!",
+    session_id=session_id
+)
+print(result.text)  # Complete response text
+print(result.value.msg_id)  # Message ID
+```
+
+<ParamField path="content" type="str" required>
+  Message text to send
+</ParamField>
+
+<ParamField path="session_id" type="str" required>
+  Chat session ID
+</ParamField>
+
+<ParamField body="..." type="other parameters">
+  Accepts same parameters as `stream()`
+</ParamField>
+
+<ResponseField name="return" type="CharacterChatCompletionResult">
+  Complete response:
+  - `.text` - Full response text
+  - `.value` - Final event object with message IDs and metadata
+</ResponseField>
+
+**Location:** `src/seaart/resources/sync/characters/characters_chat.py:292`
+
+---
+
+### list
+
+List chat sessions for a character.
+
+```python
+envelope = client.characters.chats.list("char_abc123")
+for session in envelope.value.items or []:
+    print(session.session_id, session.session_title)
+```
+
+<ParamField path="character_id" type="str" required>
+  The character whose sessions to retrieve
+</ParamField>
+
+<ParamField path="page" type="int" default="1">
+  1-based page number
+</ParamField>
+
+<ParamField path="page_size" type="int" default="20">
+  Maximum sessions per page
+</ParamField>
+
+<ParamField path="with_latest_msg" type="int" default="1">
+  When `1`, each session item includes a `latest_msg` preview
+</ParamField>
+
+<ParamField path="ss" type="int | None" default="None">
+  Internal session-state parameter
+</ParamField>
+
+<ResponseField name="return" type="APIEnvelope[HistoryCharacterChat]">
+  List of sessions:
+  - `.value.items` - List of session objects with `.session_id`, `.session_title`, `.latest_msg`, etc.
+  - `.value.has_more` - Whether further pages exist
+</ResponseField>
+
+**Location:** `src/seaart/resources/sync/characters/characters_chat.py:384`
+
+---
+
+### delete
+
+Delete a chat session.
+
+```python
+client.characters.chats.delete("sess_abc123")
+```
+
+<ParamField path="session_id" type="str" required>
+  ID of the session to delete
+</ParamField>
+
+<ResponseField name="return" type="APIEnvelope[None]">
+  Empty envelope confirming deletion
+</ResponseField>
+
+**Location:** `src/seaart/resources/sync/characters/characters_chat.py:427`
+
+---
+
+### delete_all
+
+Delete all chat sessions for a character.
+
+```python
+client.characters.chats.delete_all("char_abc123")
+```
+
+<ParamField path="character_id" type="str" required>
+  The character whose sessions to delete
+</ParamField>
+
+<ResponseField name="return" type="APIEnvelope[None]">
+  Empty envelope confirming all sessions were deleted
+</ResponseField>
+
+**Location:** `src/seaart/resources/sync/characters/characters_chat.py:448`
+
+---
+
+## Voice Methods
+
+### stream_voice
+
+Stream raw voice synthesis chunks for a character message.
+
+```python
+for item in client.characters.chats.stream_voice(msg_id=msg_id):
+    if item.audio_chunk:
+        audio_data = item.audio_chunk
+```
+
+<ParamField path="msg_id" type="str" required>
+  Message ID to synthesize
+</ParamField>
+
+<ParamField path="sub_msg_id" type="str | None" default="None">
+  Sub-message ID if applicable
+</ParamField>
+
+<ParamField path="timbre_id" type="str" default='eba3e397c5d5dc7e0324fdd267c8e0ff'>
+  Voice timbre identifier
+</ParamField>
+
+<ResponseField name="yields" type="Iterator[VoiceStreamItem]">
+  Stream of voice chunks with audio data
+</ResponseField>
+
+**Location:** `src/seaart/resources/sync/characters/characters_chat.py:328`
+
+---
+
+### get_audio
+
+Fetch synthesized voice audio for a message as raw bytes.
+
+```python
+audio_bytes = client.characters.chats.get_audio(msg_id=msg_id)
+if audio_bytes:
+    with open("output.mp3", "wb") as f:
+        f.write(audio_bytes)
+```
+
+<ParamField path="msg_id" type="str" required>
+  Message ID to synthesize
+</ParamField>
+
+<ParamField path="sub_msg_id" type="str | None" default="None">
+  Sub-message ID if applicable
+</ParamField>
+
+<ParamField path="timbre_id" type="str" default='eba3e397c5d5dc7e0324fdd267c8e0ff'>
+  Voice timbre identifier
+</ParamField>
+
+<ResponseField name="return" type="bytes | None">
+  Raw audio bytes, or None if no audio available
+</ResponseField>
+
+**Location:** `src/seaart/resources/sync/characters/characters_chat.py:346`
+
+---
+
+### save_audio
+
+Fetch synthesized voice audio and save it to disk.
+
+```python
+from pathlib import Path
+
+path = client.characters.chats.save_audio(
+    msg_id=msg_id,
+    file_path="output.mp3"
+)
+if path:
+    print(f"Saved to {path}")
+```
+
+<ParamField path="msg_id" type="str" required>
+  Message ID to synthesize
+</ParamField>
+
+<ParamField path="sub_msg_id" type="str | None" default="None">
+  Sub-message ID if applicable
+</ParamField>
+
+<ParamField path="timbre_id" type="str" default='eba3e397c5d5dc7e0324fdd267c8e0ff'>
+  Voice timbre identifier
+</ParamField>
+
+<ParamField path="file_path" type="str | Path | None" default="None">
+  Output file path. Auto-generated if not provided.
+</ParamField>
+
+<ResponseField name="return" type="Path | None">
+  Path to saved file, or None if no audio available
+</ResponseField>
+
+**Location:** `src/seaart/resources/sync/characters/characters_chat.py:364`

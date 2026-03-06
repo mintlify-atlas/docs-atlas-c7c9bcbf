@@ -1,0 +1,342 @@
+---
+title: Search
+description: Find characters, models, works, and other content with sorting and pagination
+---
+
+The SeaArt SDK provides comprehensive search capabilities across all content types including characters, models, works, posts, AI apps, videos, and workflows.
+
+## Available Search Methods
+
+The SDK offers specialized search methods for each content type:
+
+| Method | Searches |
+|--------|----------|
+| `client.search.characters()` | AI characters |
+| `client.search.models()` | Image generation models |
+| `client.search.works()` | Artwork and creations |
+| `client.search.posts()` | Community posts |
+| `client.search.ai_apps()` | AI applications |
+| `client.search.ai_videos()` | AI-generated videos |
+| `client.search.workflows()` | Automation workflows |
+| `client.search.all()` | All content types |
+
+<Note>
+All methods return a `SearchResult` with `.items`, `.has_more`, and `.offset` fields.
+</Note>
+
+## Searching Characters
+
+Find characters by name:
+
+```python
+from seaart import SyncClient
+
+with SyncClient() as client:
+    client.auth.login(
+        email="your-email@example.com",
+        password="your-password",
+    )
+
+    result = client.search.characters("Василиса Зарецкая", page_size=5)
+
+    print("Characters:")
+    for item in result.value.items:
+        print(f"  {item.id} — {item.title}")
+```
+
+### Character Search Fields
+
+Each character result includes:
+
+- `id` - Unique character identifier
+- `title` - Character name
+- `description` - Character description
+- `avatar_url` - Profile image URL
+- `creator_id` - ID of the character creator
+
+## Searching Models
+
+Find image generation models with sorting:
+
+```python
+result = client.search.models(
+    "realistic",
+    page_size=5,
+    order_by="hot"  # or "new"
+)
+
+print("Models:")
+for item in result.value.items:
+    print(f"  {item.id} — {item.title}")
+```
+
+### Sorting Options
+
+The `order_by` parameter accepts:
+
+| Value | Description |
+|-------|-------------|
+| `"hot"` | Sort by popularity/trending |
+| `"new"` | Sort by most recent |
+
+### Model Search Fields
+
+Each model result includes:
+
+- `id` - Model identifier
+- `title` - Model name
+- `description` - Model description
+- `preview_url` - Example image URL
+- `tags` - Associated tags
+- `creator_id` - ID of the model creator
+
+## Pagination
+
+Paginate through search results using the `offset` parameter:
+
+<Steps>
+  <Step title="Initial Search">
+    Start with offset 0:
+
+    ```python
+    offset = 0
+    page = 1
+
+    result = client.search.works(
+        "fantasy",
+        page_size=10,
+        offset=offset
+    )
+    ```
+  </Step>
+
+  <Step title="Check for More Results">
+    Use the `has_more` flag:
+
+    ```python
+    print(f"Page {page}:")
+    for item in result.value.items:
+        print(f"  {item.title}")
+
+    if not result.value.has_more:
+        print("No more results")
+        # Stop pagination
+    ```
+  </Step>
+
+  <Step title="Fetch Next Page">
+    Use the returned offset:
+
+    ```python
+    offset = int(result.value.offset)
+    page += 1
+
+    result = client.search.works(
+        "fantasy",
+        page_size=10,
+        offset=offset
+    )
+    ```
+  </Step>
+</Steps>
+
+### Complete Pagination Example
+
+```python
+with SyncClient() as client:
+    client.auth.login(
+        email="your-email@example.com",
+        password="your-password",
+    )
+
+    offset = 0
+    page = 1
+
+    while True:
+        result = client.search.works(
+            "fantasy",
+            page_size=10,
+            offset=offset
+        )
+
+        print(f"Page {page}:")
+        for item in result.value.items:
+            print(f"  {item.title}")
+
+        if not result.value.has_more:
+            break
+
+        offset = int(result.value.offset)
+        page += 1
+
+        # Optional: limit pages
+        if page > 3:
+            break
+```
+
+## Search All Content Types
+
+Search across all content at once:
+
+```python
+result = client.search.all("cyberpunk", page_size=5)
+
+print("All results:")
+for item in result.value.items:
+    print(f"  {item.id} — {item.title}")
+```
+
+The results will include a mix of characters, models, works, and other content types.
+
+## Search Parameters
+
+All search methods support these common parameters:
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `query` | `str` | Required | Search query text |
+| `page_size` | `int` | `20` | Number of results per page |
+| `offset` | `int` | `0` | Pagination offset |
+| `order_by` | `str` | `"hot"` | Sort order (models only) |
+
+## Response Structure
+
+All search methods return a `SearchResult` with:
+
+```python
+result = client.search.characters("name")
+
+# Access results
+result.value.items         # List of search results
+result.value.has_more      # bool: More results available?
+result.value.offset        # str: Offset for next page
+result.value.total         # int: Total result count (if available)
+```
+
+## Filtering and Advanced Search
+
+Combine search with filtering:
+
+```python
+# Search models and filter by criteria
+result = client.search.models(
+    "anime",
+    page_size=20,
+    order_by="hot"
+)
+
+# Filter results in code
+popular_models = [
+    item for item in result.value.items
+    if hasattr(item, 'popularity') and item.popularity > 1000
+]
+
+for model in popular_models:
+    print(f"{model.title} - Popularity: {model.popularity}")
+```
+
+## Using Search Results
+
+### Create Chat with Found Character
+
+```python
+# Search for a character
+result = client.search.characters("assistant")
+
+if result.value.items:
+    character = result.value.items[0]
+    character_id = character.id
+
+    # Create chat session
+    chat = client.characters.chats.create(character_id)
+    session_id = chat.value.session_id
+
+    # Send message
+    response = client.characters.chats.send(
+        "Hello!",
+        session_id
+    )
+    print(response.text)
+
+    client.characters.chats.delete(session_id)
+```
+
+### Generate with Found Model
+
+```python
+# Search for a model
+result = client.search.models("realistic portrait")
+
+if result.value.items:
+    model = result.value.items[0]
+    model_id = model.id
+
+    # Use for image generation
+    envelope = client.images.text_to_img(
+        prompt="a portrait of a wise wizard",
+        model_no=model_id,
+    )
+    item = envelope.wait(timeout=120)
+    print(f"Generated: {item.image_url}")
+```
+
+## Async Support
+
+All search methods have async equivalents:
+
+```python
+from seaart import AsyncClient
+
+async with AsyncClient() as client:
+    await client.auth.login(
+        email="your-email@example.com",
+        password="your-password",
+    )
+
+    # Async search
+    result = await client.search.characters("name", page_size=10)
+
+    for item in result.value.items:
+        print(f"{item.id} — {item.title}")
+```
+
+## Error Handling
+
+Handle search errors gracefully:
+
+```python
+from seaart.exceptions import SeaArtAPIError
+
+try:
+    result = client.search.characters("query")
+
+    if not result.value.items:
+        print("No results found")
+    else:
+        for item in result.value.items:
+            print(item.title)
+
+except SeaArtAPIError as e:
+    print(f"Search failed: {e}")
+```
+
+## Performance Tips
+
+<Note>
+**Best Practices:**
+- Use appropriate `page_size` (10-20 for quick results, 50+ for bulk operations)
+- Cache search results when possible
+- Use specific search methods instead of `.all()` for better performance
+- Implement debouncing for real-time search in UIs
+</Note>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Character Chat" icon="messages" href="/guides/character-chat">
+    Chat with found characters
+  </Card>
+  <Card title="Image Generation" icon="image" href="/guides/image-generation">
+    Generate with found models
+  </Card>
+</CardGroup>

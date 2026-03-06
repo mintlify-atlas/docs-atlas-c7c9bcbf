@@ -1,0 +1,107 @@
+---
+title: "Introduction"
+description: "Unofficial typed Python client for the SeaArt.ai API with sync and async support"
+---
+
+# Introduction
+
+Welcome to the SeaArt Python SDK documentation! This is an unofficial typed Python client for the [SeaArt.ai](https://www.seaart.ai/) API that provides both synchronous and asynchronous support.
+
+## What is SeaArt SDK?
+
+SeaArt SDK is a powerful Python library that enables developers to interact with the SeaArt.ai platform programmatically. Whether you're building AI-powered chat applications, generating stunning images, or creating creative AI tools, this SDK provides an intuitive and type-safe interface to access SeaArt's capabilities.
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="Sync & Async Clients" icon="arrows-spin">
+    Identical APIs for both `SyncClient` and `AsyncClient` - choose based on your application's needs
+  </Card>
+  
+  <Card title="Fully Typed" icon="shield-check">
+    Built with Pydantic v2 for complete type safety and validation on all API responses
+  </Card>
+  
+  <Card title="Real-time Streaming" icon="wave-pulse">
+    SSE streaming support for character chat with token-by-token responses
+  </Card>
+  
+  <Card title="Task Polling" icon="clock">
+    Simple `envelope.wait()` pattern for image generation and long-running tasks
+  </Card>
+  
+  <Card title="Modern HTTP" icon="bolt">
+    Built on curl-cffi with HTTP/2, HTTP/3, and browser impersonation support
+  </Card>
+  
+  <Card title="Exception Handling" icon="circle-exclamation">
+    Structured exception hierarchy for clear error handling
+  </Card>
+</CardGroup>
+
+## What You Can Build
+
+With the SeaArt SDK, you can:
+
+- **AI Character Chat**: Create conversational AI applications with memory and personality
+- **Image Generation**: Generate images from text prompts using powerful AI models
+- **Image Transformation**: Convert images with img-to-img, upscaling, and background removal
+- **Search & Discovery**: Search characters, models, and artworks
+- **Creative Tools**: Build custom AI-powered creative applications
+
+## Requirements
+
+<Note>
+  **Python 3.11 or higher** is required to use the SeaArt SDK.
+</Note>
+
+The SDK has minimal dependencies:
+- **curl-cffi** (version 0.13.0 or higher) - Modern HTTP client with browser impersonation
+- **pydantic** (version 2.0 or higher, below 3.0) - Data validation and type safety
+
+## Authentication Options
+
+The SDK supports multiple authentication methods:
+
+1. **Email & Password** - Standard login with your SeaArt.ai account
+2. **Token-based** - Use a pre-existing token to skip the login round-trip
+3. **Tourist Mode** - Access without an account (limited features)
+
+<Warning>
+  Tourist accounts have limited access and reduced quotas. For full functionality, create a SeaArt.ai account.
+</Warning>
+
+## Architecture
+
+The SDK is organized into resource modules that mirror the SeaArt API:
+
+- `client.auth` - Authentication and session management
+- `client.characters` - AI character interactions and chat
+- `client.images` - Image generation, transformation, and management
+- `client.search` - Search characters, models, and works
+- `client.tasks` - Task status and management
+- `client.genagent` - AI assistant conversations
+- `client.account` - Account information and settings
+- `client.models` - Model information and selection
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/installation">
+    Install the SDK using pip, uv, or poetry
+  </Card>
+  
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Get started with your first character chat and image generation
+  </Card>
+</CardGroup>
+
+## Community & Support
+
+- **GitHub Repository**: [github.com/delafault/seaart](https://github.com/delafault/seaart)
+- **Issue Tracker**: [Report bugs and request features](https://github.com/delafault/seaart/issues)
+- **PyPI Package**: [pypi.org/project/seaart](https://pypi.org/project/seaart/)
+
+<Note>
+  This is an **unofficial** SDK and is not affiliated with or endorsed by SeaArt.ai. Use at your own discretion.
+</Note>

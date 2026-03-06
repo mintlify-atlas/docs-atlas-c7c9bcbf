@@ -1,0 +1,576 @@
+---
+title: "Tasks"
+description: "Monitor and manage image generation tasks"
+---
+
+## Overview
+
+The `TasksResource` provides methods to monitor generation task progress, wait for completion, and manage active tasks.
+
+Accessible via `client.tasks` (sync) or `client.tasks` (async).
+
+## Methods
+
+### progress()
+
+Fetch the current progress status for a single task.
+
+<ParamField path="task_id" type="str" required>
+  Task ID to query
+</ParamField>
+
+<ResponseField name="return" type="APIEnvelope[TaskItem]">
+  API envelope containing task progress information
+  
+  <Expandable title="TaskItem properties">
+    <ResponseField name="task_id" type="str">
+      Task identifier
+    </ResponseField>
+    
+    <ResponseField name="percent" type="int">
+      Generation progress (0-100). Alias for `process` field
+    </ResponseField>
+    
+    <ResponseField name="is_done" type="bool">
+      `True` when progress reaches 100%
+    </ResponseField>
+    
+    <ResponseField name="status" type="int">
+      Task status code
+    </ResponseField>
+    
+    <ResponseField name="status_desc" type="str">
+      Human-readable status description
+    </ResponseField>
+    
+    <ResponseField name="image_url" type="str | None">
+      URL of the first generated image (None if not ready)
+    </ResponseField>
+    
+    <ResponseField name="image_urls" type="list[str]">
+      URLs of all generated images
+    </ResponseField>
+    
+    <ResponseField name="img_uris" type="list[ImgUri] | None">
+      Detailed image URI information
+    </ResponseField>
+    
+    <ResponseField name="reverse_prompt" type="str | None">
+      Reverse-engineered prompt describing the image
+    </ResponseField>
+    
+    <ResponseField name="task_return" type="TaskReturn">
+      Queue and resource information
+    </ResponseField>
+    
+    <ResponseField name="estimate_time" type="EstimateTime">
+      Estimated completion time (min_time, max_time, avg_time)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+**Raises:**
+- `MissingDataError` - If the server returns no entry for the task ID
+
+<CodeGroup>
+```python Sync
+from seaart import SyncClient
+
+with SyncClient() as client:
+    client.auth.login(email="user@example.com", password="password")
+    
+    # Start a generation task
+    task = client.images.txt2img(
+        prompt="a serene landscape",
+        model_no="model_abc123"
+    )
+    
+    # Check progress
+    progress = client.tasks.progress(task.value.id)
+    
+    print(f"Progress: {progress.value.percent}%")
+    print(f"Status: {progress.value.status_desc}")
+    print(f"Done: {progress.value.is_done}")
+    
+    if progress.value.is_done:
+        print(f"Image URL: {progress.value.image_url}")
+```
+
+```python Async
+from seaart import AsyncClient
+
+async with AsyncClient() as client:
+    await client.auth.login(email="user@example.com", password="password")
+    
+    # Start a generation task
+    task = await client.images.txt2img(
+        prompt="a serene landscape",
+        model_no="model_abc123"
+    )
+    
+    # Check progress
+    progress = await client.tasks.progress(task.value.id)
+    print(f"Progress: {progress.value.percent}%")
+```
+</CodeGroup>
+
+---
+
+### batch_progress()
+
+Fetch progress for multiple tasks simultaneously.
+
+<ParamField path="task_ids" type="list[str]" required>
+  List of task IDs to query
+</ParamField>
+
+<ResponseField name="return" type="APIEnvelope[TasksCollection]">
+  API envelope containing a collection of task items
+  
+  <Expandable title="TasksCollection fields">
+    <ResponseField name="items" type="list[TaskItem]">
+      List of task progress items, one per queried task ID
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+```python
+from seaart import SyncClient
+
+with SyncClient() as client:
+    client.auth.login(email="user@example.com", password="password")
+    
+    # Query multiple tasks
+    result = client.tasks.batch_progress(["task1", "task2", "task3"])
+    
+    for item in result.value.items:
+        print(f"Task {item.task_id}: {item.percent}% complete")
+```
+
+---
+
+### wait()
+
+Poll a task until it completes and return the final result. This method blocks until the task finishes or times out.
+
+<ParamField path="task_id" type="str" required>
+  Task ID to wait for
+</ParamField>
+
+<ParamField path="interval" type="float" default="2.0">
+  Seconds to sleep between polling attempts
+</ParamField>
+
+<ParamField path="timeout" type="float | None" default="300.0">
+  Maximum seconds to wait before raising `TaskTimeoutError`. `None` waits indefinitely
+</ParamField>
+
+<ResponseField name="return" type="TaskItem">
+  The completed task item with generated images
+</ResponseField>
+
+**Raises:**
+- `TaskTimeoutError` - If the task does not complete within the timeout period
+
+<CodeGroup>
+```python Sync
+from seaart import SyncClient
+
+with SyncClient() as client:
+    client.auth.login(email="user@example.com", password="password")
+    
+    # Start generation
+    task = client.images.txt2img(
+        prompt="a cyberpunk city at night",
+        model_no="model_abc123"
+    )
+    
+    # Wait for completion (polls every 2 seconds)
+    result = client.tasks.wait(task.value.id, timeout=120)
+    
+    print(f"Generation complete!")
+    print(f"Image URL: {result.image_url}")
+    
+    # Download all images
+    for i, url in enumerate(result.image_urls):
+        print(f"Image {i+1}: {url}")
+```
+
+```python Async
+from seaart import AsyncClient
+
+async with AsyncClient() as client:
+    await client.auth.login(email="user@example.com", password="password")
+    
+    # Start generation
+    task = await client.images.txt2img(
+        prompt="a cyberpunk city at night",
+        model_no="model_abc123"
+    )
+    
+    # Wait for completion
+    result = await client.tasks.wait(task.value.id, timeout=120)
+    print(f"Image URL: {result.image_url}")
+```
+</CodeGroup>
+
+---
+
+### wait_many()
+
+Poll multiple tasks until all complete.
+
+<ParamField path="task_ids" type="list[str]" required>
+  List of task IDs to wait for. Returns empty dict immediately if list is empty
+</ParamField>
+
+<ParamField path="interval" type="float" default="2.0">
+  Seconds to sleep between polling attempts
+</ParamField>
+
+<ParamField path="timeout" type="float | None" default="300.0">
+  Maximum seconds to wait before raising. `None` waits indefinitely
+</ParamField>
+
+<ResponseField name="return" type="dict[str, TaskItem]">
+  Dictionary mapping each task ID to its completed TaskItem
+</ResponseField>
+
+**Raises:**
+- `TaskTimeoutError` - If any tasks have not completed within the timeout. Error message lists remaining task IDs
+
+```python
+from seaart import SyncClient
+
+with SyncClient() as client:
+    client.auth.login(email="user@example.com", password="password")
+    
+    # Start multiple generations
+    task1 = client.images.txt2img(prompt="sunset", model_no="model_abc123")
+    task2 = client.images.txt2img(prompt="mountains", model_no="model_abc123")
+    task3 = client.images.txt2img(prompt="ocean", model_no="model_abc123")
+    
+    # Wait for all to complete
+    results = client.tasks.wait_many([
+        task1.value.id,
+        task2.value.id,
+        task3.value.id
+    ], timeout=180)
+    
+    # Process results
+    for task_id, item in results.items():
+        print(f"Task {task_id}: {item.image_url}")
+```
+
+---
+
+### detail()
+
+Fetch detailed artwork information for a completed task.
+
+<ParamField path="task_id" type="str" required>
+  Task identifier to look up
+</ParamField>
+
+<ParamField path="task_flow_version" type="str" default="'v2'">
+  Task flow version forwarded to the API
+</ParamField>
+
+<ResponseField name="return" type="APIEnvelope[ArtworkDetails]">
+  API envelope containing detailed artwork information
+  
+  <Expandable title="ArtworkDetails fields">
+    <ResponseField name="img_uris" type="list[ImgUri]">
+      Generated image entries with URLs and metadata
+    </ResponseField>
+    
+    <ResponseField name="art_model_name" type="str">
+      Name of the model used for generation
+    </ResponseField>
+    
+    <ResponseField name="artwork_no" type="str">
+      Public artwork identifier
+    </ResponseField>
+    
+    <ResponseField name="meta" type="Meta">
+      Generation metadata (prompt, seed, steps, CFG scale, etc.)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+```python
+from seaart import SyncClient
+
+with SyncClient() as client:
+    client.auth.login(email="user@example.com", password="password")
+    
+    # Get detailed information
+    info = client.tasks.detail("task_id_123")
+    
+    print(f"Model used: {info.value.art_model_name}")
+    print(f"Artwork ID: {info.value.artwork_no}")
+    
+    # Access generation metadata
+    meta = info.value.meta
+    print(f"Prompt: {meta.prompt}")
+    print(f"Seed: {meta.seed}")
+    print(f"Steps: {meta.steps}")
+    print(f"CFG Scale: {meta.guidance_scale}")
+    
+    # Get all image URLs
+    for uri in info.value.img_uris:
+        print(f"Image: {uri.url}")
+```
+
+---
+
+### cancel()
+
+Cancel an active generation task.
+
+<ParamField path="task_id" type="str" required>
+  Identifier of the task to cancel
+</ParamField>
+
+<ResponseField name="return" type="APIEnvelope[TaskOperationResult]">
+  API envelope containing cancellation result
+  
+  <Expandable title="TaskOperationResult fields">
+    <ResponseField name="new_task" type="NewTask">
+      Updated task metadata after cancellation
+    </ResponseField>
+    
+    <ResponseField name="task_return" type="TaskReturn">
+      Queue and resource statistics after cancellation
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+```python
+from seaart import SyncClient
+
+with SyncClient() as client:
+    client.auth.login(email="user@example.com", password="password")
+    
+    # Start a task
+    task = client.images.txt2img(prompt="test", model_no="model_abc123")
+    
+    # Cancel it
+    result = client.tasks.cancel(task.value.id)
+    print(f"Task status: {result.value.new_task.status_desc}")
+```
+
+---
+
+### delete()
+
+Delete one or more tasks from your task history.
+
+<ParamField path="task_ids" type="list[str] | str" required>
+  Single task ID or list of task IDs to delete
+</ParamField>
+
+<ResponseField name="return" type="APIEnvelope[None]">
+  API envelope with no data payload on success
+</ResponseField>
+
+```python
+from seaart import SyncClient
+
+with SyncClient() as client:
+    client.auth.login(email="user@example.com", password="password")
+    
+    # Delete a single task
+    client.tasks.delete("task_id_123")
+    
+    # Delete multiple tasks
+    client.tasks.delete(["task1", "task2", "task3"])
+```
+
+---
+
+### speed_up()
+
+Request priority processing for a queued task.
+
+<ParamField path="task_id" type="str" required>
+  Identifier of the task to accelerate
+</ParamField>
+
+<ResponseField name="return" type="APIEnvelope[TaskSpeedUpResult]">
+  API envelope containing speed up result
+  
+  <Expandable title="TaskSpeedUpResult fields">
+    <ResponseField name="num" type="int">
+      Remaining number of free speed ups available
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+```python
+from seaart import SyncClient
+
+with SyncClient() as client:
+    client.auth.login(email="user@example.com", password="password")
+    
+    # Start a task
+    task = client.images.txt2img(prompt="test", model_no="model_abc123")
+    
+    # Speed it up
+    result = client.tasks.speed_up(task.value.id)
+    print(f"Remaining speed ups: {result.value.num}")
+```
+
+## Type Reference
+
+### TaskItem
+
+Represents the current state of a generation task.
+
+<ResponseField name="task_id" type="str">
+  Unique task identifier
+</ResponseField>
+
+<ResponseField name="percent" type="int">
+  Progress percentage (0-100)
+</ResponseField>
+
+<ResponseField name="is_done" type="bool">
+  Whether the task has completed
+</ResponseField>
+
+<ResponseField name="status" type="int">
+  Status code
+</ResponseField>
+
+<ResponseField name="status_desc" type="str">
+  Human-readable status
+</ResponseField>
+
+<ResponseField name="image_url" type="str | None">
+  First generated image URL
+</ResponseField>
+
+<ResponseField name="image_urls" type="list[str]">
+  All generated image URLs
+</ResponseField>
+
+<ResponseField name="reverse_prompt" type="str | None">
+  AI-generated description of the image
+</ResponseField>
+
+<ResponseField name="task_return" type="TaskReturn">
+  Queue position and resource usage info
+</ResponseField>
+
+<ResponseField name="estimate_time" type="EstimateTime">
+  Estimated time to completion (min_time, max_time, avg_time in seconds)
+</ResponseField>
+
+<ResponseField name="deduction_detail" type="DeductionDetail">
+  Resource deduction information
+</ResponseField>
+
+## Usage Examples
+
+### Basic Task Monitoring
+
+```python
+from seaart import SyncClient
+import time
+
+with SyncClient() as client:
+    client.auth.login(email="user@example.com", password="password")
+    
+    # Start generation
+    task = client.images.txt2img(
+        prompt="a beautiful sunset over mountains",
+        model_no="model_abc123"
+    )
+    
+    # Manual polling
+    while True:
+        progress = client.tasks.progress(task.value.id)
+        
+        print(f"Progress: {progress.value.percent}%")
+        print(f"Status: {progress.value.status_desc}")
+        
+        if progress.value.is_done:
+            print(f"Complete! Image: {progress.value.image_url}")
+            break
+        
+        time.sleep(2)
+```
+
+### Using wait() Helper
+
+```python
+from seaart import SyncClient
+
+with SyncClient() as client:
+    client.auth.login(email="user@example.com", password="password")
+    
+    # Start generation
+    task = client.images.txt2img(
+        prompt="a cyberpunk cityscape",
+        model_no="model_abc123"
+    )
+    
+    # Wait for completion with custom settings
+    result = client.tasks.wait(
+        task.value.id,
+        interval=1.0,  # Poll every second
+        timeout=60.0   # Wait up to 60 seconds
+    )
+    
+    print(f"Image: {result.image_url}")
+```
+
+### Batch Generation
+
+```python
+from seaart import SyncClient
+
+with SyncClient() as client:
+    client.auth.login(email="user@example.com", password="password")
+    
+    prompts = [
+        "a red rose",
+        "a blue sky",
+        "a green forest"
+    ]
+    
+    # Start all tasks
+    task_ids = []
+    for prompt in prompts:
+        task = client.images.txt2img(prompt=prompt, model_no="model_abc123")
+        task_ids.append(task.value.id)
+    
+    # Wait for all to complete
+    results = client.tasks.wait_many(task_ids, timeout=300)
+    
+    # Process results
+    for task_id, item in results.items():
+        print(f"Generated: {item.image_url}")
+```
+
+### Error Handling
+
+```python
+from seaart import SyncClient
+from seaart.exceptions import TaskTimeoutError, MissingDataError
+
+with SyncClient() as client:
+    client.auth.login(email="user@example.com", password="password")
+    
+    task = client.images.txt2img(prompt="test", model_no="model_abc123")
+    
+    try:
+        result = client.tasks.wait(task.value.id, timeout=30)
+        print(f"Success: {result.image_url}")
+    except TaskTimeoutError:
+        print("Task took too long, but may still be processing")
+        # Can check progress manually or wait longer
+    except MissingDataError:
+        print("Task not found")
+```

@@ -1,0 +1,382 @@
+---
+title: "Payments"
+description: "Access account payment assets and subscription information"
+---
+
+## Overview
+
+The `PaymentsResource` provides methods to fetch information about your account's payment assets, including coin balances and subscription status.
+
+Accessible via `client.payments` (sync) or `client.payments` (async).
+
+## Methods
+
+### assets()
+
+Fetch the current account's payment assets and subscription status, including coin balances and active subscription flags.
+
+<ResponseField name="return" type="APIEnvelope[PaymentAccessInfo]">
+  API envelope containing comprehensive payment and subscription information
+  
+  <Expandable title="PaymentAccessInfo fields">
+    <ResponseField name="paid_coins" type="int">
+      Number of purchased coins available
+    </ResponseField>
+    
+    <ResponseField name="free_coins" type="int">
+      Number of free coins available
+    </ResponseField>
+    
+    <ResponseField name="temp_free_coins" type="int">
+      Temporary free coins (promotional or trial)
+    </ResponseField>
+    
+    <ResponseField name="temp_coins" type="float">
+      Additional temporary coins
+    </ResponseField>
+    
+    <ResponseField name="calculate_coins" type="float">
+      Total usable coins after calculations
+    </ResponseField>
+    
+    <ResponseField name="is_active" type="bool">
+      Whether the account has an active subscription
+    </ResponseField>
+    
+    <ResponseField name="lite_is_active" type="bool">
+      Whether the Lite subscription tier is active
+    </ResponseField>
+    
+    <ResponseField name="big_is_active" type="bool">
+      Whether the Pro/Big subscription tier is active
+    </ResponseField>
+    
+    <ResponseField name="vip_type" type="str">
+      VIP tier type identifier
+    </ResponseField>
+    
+    <ResponseField name="expiry_time" type="int">
+      Subscription expiry timestamp
+    </ResponseField>
+    
+    <ResponseField name="run_limit" type="int">
+      Maximum concurrent running tasks
+    </ResponseField>
+    
+    <ResponseField name="hang_limit" type="int">
+      Maximum queued tasks
+    </ResponseField>
+    
+    <ResponseField name="infinite_queue" type="bool">
+      Whether the account has unlimited queue
+    </ResponseField>
+    
+    <ResponseField name="fast_queue_trial_num" type="int">
+      Number of free fast queue trials remaining
+    </ResponseField>
+    
+    <ResponseField name="max_recharge" type="float">
+      Maximum recharge amount
+    </ResponseField>
+    
+    <ResponseField name="total_recharge" type="float">
+      Total amount recharged historically
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<CodeGroup>
+```python Sync
+from seaart import SyncClient
+
+with SyncClient() as client:
+    client.auth.login(email="user@example.com", password="password")
+    
+    # Get payment assets
+    info = client.payments.assets()
+    
+    # Check coin balances
+    print(f"Paid coins: {info.value.paid_coins}")
+    print(f"Free coins: {info.value.free_coins}")
+    print(f"Temp coins: {info.value.temp_free_coins}")
+    print(f"Total usable: {info.value.calculate_coins}")
+    
+    # Check subscription status
+    if info.value.is_active:
+        print(f"Active subscription: {info.value.vip_type}")
+        print(f"Expires at: {info.value.expiry_time}")
+    else:
+        print("No active subscription")
+    
+    # Check limits
+    print(f"Can run {info.value.run_limit} tasks concurrently")
+    print(f"Can queue {info.value.hang_limit} tasks")
+    if info.value.infinite_queue:
+        print("Has unlimited queue")
+```
+
+```python Async
+from seaart import AsyncClient
+
+async with AsyncClient() as client:
+    await client.auth.login(email="user@example.com", password="password")
+    
+    # Get payment assets
+    info = await client.payments.assets()
+    
+    print(f"Paid coins: {info.value.paid_coins}")
+    print(f"Free coins: {info.value.free_coins}")
+    print(f"Active: {info.value.is_active}")
+```
+</CodeGroup>
+
+## Type Reference
+
+### PaymentAccessInfo
+
+Comprehensive information about account payment status and assets.
+
+#### Coin Balances
+
+<ResponseField name="paid_coins" type="int">
+  Purchased coins available for use
+</ResponseField>
+
+<ResponseField name="free_coins" type="int">
+  Free coins available (from promotions, daily rewards, etc.)
+</ResponseField>
+
+<ResponseField name="temp_free_coins" type="int">
+  Temporary promotional free coins
+</ResponseField>
+
+<ResponseField name="temp_coins" type="float">
+  Additional temporary coins
+</ResponseField>
+
+<ResponseField name="calculate_coins" type="float">
+  Total calculated usable coins
+</ResponseField>
+
+#### Subscription Status
+
+<ResponseField name="is_active" type="bool">
+  Whether any subscription tier is active
+</ResponseField>
+
+<ResponseField name="lite_is_active" type="bool">
+  Lite tier subscription status
+</ResponseField>
+
+<ResponseField name="big_is_active" type="bool">
+  Pro/Big tier subscription status
+</ResponseField>
+
+<ResponseField name="vip_type" type="str">
+  VIP tier identifier
+</ResponseField>
+
+<ResponseField name="expiry_time" type="int">
+  Unix timestamp when subscription expires
+</ResponseField>
+
+<ResponseField name="lite_expiry_time" type="int">
+  Lite tier expiry timestamp
+</ResponseField>
+
+<ResponseField name="big_expiry_time" type="int">
+  Pro/Big tier expiry timestamp
+</ResponseField>
+
+#### Task Limits
+
+<ResponseField name="run_limit" type="int">
+  Maximum number of concurrent running tasks
+</ResponseField>
+
+<ResponseField name="hang_limit" type="int">
+  Maximum number of queued tasks
+</ResponseField>
+
+<ResponseField name="infinite_queue" type="bool">
+  Whether the account has unlimited queue capacity
+</ResponseField>
+
+<ResponseField name="fast_queue_trial_num" type="int">
+  Number of free fast queue speed-ups remaining
+</ResponseField>
+
+#### Account Features
+
+<ResponseField name="privacy_mode" type="bool">
+  Whether privacy mode is enabled
+</ResponseField>
+
+<ResponseField name="work_delete" type="bool">
+  Whether work deletion is enabled
+</ResponseField>
+
+<ResponseField name="vip_customer_service" type="bool">
+  Whether VIP customer service is available
+</ResponseField>
+
+<ResponseField name="forever_save_task" type="bool">
+  Whether tasks are saved permanently
+</ResponseField>
+
+#### Financial Information
+
+<ResponseField name="max_recharge" type="float">
+  Maximum single recharge amount
+</ResponseField>
+
+<ResponseField name="total_recharge" type="float">
+  Total historical recharge amount
+</ResponseField>
+
+## Usage Examples
+
+### Checking Coin Balance
+
+```python
+from seaart import SyncClient
+
+with SyncClient() as client:
+    client.auth.login(email="user@example.com", password="password")
+    
+    # Get current balance
+    info = client.payments.assets()
+    
+    total_coins = info.value.calculate_coins
+    
+    if total_coins > 0:
+        print(f"You have {total_coins} coins available")
+        print(f"  - Paid: {info.value.paid_coins}")
+        print(f"  - Free: {info.value.free_coins}")
+        print(f"  - Temp: {info.value.temp_free_coins}")
+    else:
+        print("No coins available. Please recharge or get free coins.")
+```
+
+### Checking Subscription Status
+
+```python
+from seaart import SyncClient
+from datetime import datetime
+
+with SyncClient() as client:
+    client.auth.login(email="user@example.com", password="password")
+    
+    info = client.payments.assets()
+    
+    if info.value.is_active:
+        # Format expiry time
+        expiry = datetime.fromtimestamp(info.value.expiry_time)
+        
+        print(f"Active subscription: {info.value.vip_type}")
+        print(f"Expires: {expiry.strftime('%Y-%m-%d %H:%M:%S')}")
+        
+        # Check tier
+        if info.value.big_is_active:
+            print("Pro/Big tier active")
+        elif info.value.lite_is_active:
+            print("Lite tier active")
+    else:
+        print("No active subscription")
+        print("Consider upgrading for more features!")
+```
+
+### Checking Generation Limits
+
+```python
+from seaart import SyncClient
+
+with SyncClient() as client:
+    client.auth.login(email="user@example.com", password="password")
+    
+    info = client.payments.assets()
+    
+    print(f"Task limits:")
+    print(f"  - Concurrent runs: {info.value.run_limit}")
+    print(f"  - Queue capacity: {info.value.hang_limit}")
+    
+    if info.value.infinite_queue:
+        print("  - Unlimited queue enabled!")
+    
+    if info.value.fast_queue_trial_num > 0:
+        print(f"  - {info.value.fast_queue_trial_num} free speed-ups available")
+```
+
+### Pre-Generation Check
+
+```python
+from seaart import SyncClient
+
+def can_generate(client: SyncClient) -> bool:
+    """Check if the account can generate images."""
+    info = client.payments.assets()
+    
+    # Check if coins are available
+    if info.value.calculate_coins <= 0:
+        print("Insufficient coins")
+        return False
+    
+    print(f"Available coins: {info.value.calculate_coins}")
+    return True
+
+with SyncClient() as client:
+    client.auth.login(email="user@example.com", password="password")
+    
+    if can_generate(client):
+        task = client.images.txt2img(
+            prompt="a beautiful sunset",
+            model_no="model_abc123"
+        )
+        result = client.tasks.wait(task.value.id)
+        print(f"Generated: {result.image_url}")
+        
+        # Check balance after generation
+        new_info = client.payments.assets()
+        print(f"Remaining coins: {new_info.value.calculate_coins}")
+```
+
+### Subscription Benefits Display
+
+```python
+from seaart import SyncClient
+
+with SyncClient() as client:
+    client.auth.login(email="user@example.com", password="password")
+    
+    info = client.payments.assets()
+    
+    print("Account Benefits:")
+    print(f"  - Concurrent tasks: {info.value.run_limit}")
+    print(f"  - Queue capacity: {info.value.hang_limit}")
+    
+    if info.value.infinite_queue:
+        print("  - Unlimited queue: Yes")
+    
+    if info.value.privacy_mode:
+        print("  - Privacy mode: Enabled")
+    
+    if info.value.forever_save_task:
+        print("  - Permanent task storage: Yes")
+    
+    if info.value.vip_customer_service:
+        print("  - VIP support: Available")
+```
+
+## Best Practices
+
+<Tip>
+  **Check balance before generation**: Call `assets()` before starting expensive operations to ensure sufficient coins are available.
+</Tip>
+
+<Note>
+  **Understand coin types**: The account uses different coin types (paid, free, temp). The `calculate_coins` field provides the total usable amount.
+</Note>
+
+<Warning>
+  **Monitor limits**: Free accounts have lower `run_limit` and `hang_limit` values. Upgrade to a subscription for higher limits and additional features.
+</Warning>

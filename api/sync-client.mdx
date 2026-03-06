@@ -1,0 +1,464 @@
+---
+title: SyncClient
+description: Synchronous client for the SeaArt API
+---
+
+## Overview
+
+The `SyncClient` class provides a synchronous interface to interact with the SeaArt API. It handles authentication, request management, and response parsing.
+
+## Constructor
+
+```python
+SyncClient(
+    base_url: str = BASE_URL,
+    token: str | None = None,
+    *,
+    app_id: AppId = AppId.WEB,
+    timeout: float = 30.0,
+    connect_timeout: float | None = None,
+    read_timeout: float | None = None,
+    cache_ttl_seconds: float | None = None,
+    user_agent: str = USER_AGENT,
+    http_version: HttpVersionLiteral = "v2",
+    default_headers: Mapping[str, str] | None = None,
+    proxy: str | None = None,
+    proxies: ProxySpec | None = None,
+    impersonate: BrowserTypeLiteral | None = None,
+    session: SessionT | None = None,
+)
+```
+
+### Parameters
+
+<ParamField path="base_url" type="str" default="BASE_URL">
+  Base API endpoint URL for all requests
+</ParamField>
+
+<ParamField path="token" type="str | None" default="None">
+  Authentication token included in every request header
+</ParamField>
+
+<ParamField path="app_id" type="AppId" default="AppId.WEB">
+  Application identifier sent with requests
+</ParamField>
+
+<ParamField path="timeout" type="float" default="30.0">
+  Default request timeout in seconds. Can be overridden by `connect_timeout` and `read_timeout`
+</ParamField>
+
+<ParamField path="connect_timeout" type="float | None" default="None">
+  TCP connection timeout in seconds. Overrides the connect portion of `timeout` when set
+</ParamField>
+
+<ParamField path="read_timeout" type="float | None" default="None">
+  Response body read timeout in seconds. Overrides the read portion of `timeout` when set
+</ParamField>
+
+<ParamField path="cache_ttl_seconds" type="float | None" default="None">
+  TTL for in-memory cached responses. Set to `None` to disable caching
+</ParamField>
+
+<ParamField path="user_agent" type="str" default="USER_AGENT">
+  Custom `User-Agent` header value for requests
+</ParamField>
+
+<ParamField path="http_version" type="HttpVersionLiteral" default="v2">
+  HTTP protocol version: `"v1"`, `"v2"`, or `"v3"`
+</ParamField>
+
+<ParamField path="default_headers" type="Mapping[str, str] | None" default="None">
+  Extra headers merged into every request
+</ParamField>
+
+<ParamField path="proxy" type="str | None" default="None">
+  Proxy URL applied to all requests
+</ParamField>
+
+<ParamField path="proxies" type="ProxySpec | None" default="None">
+  Per-protocol proxy map (curl_cffi ProxySpec)
+</ParamField>
+
+<ParamField path="impersonate" type="BrowserTypeLiteral | None" default="None">
+  Browser fingerprint to impersonate (e.g., `"chrome"`, `"firefox"`)
+</ParamField>
+
+<ParamField path="session" type="SessionT | None" default="None">
+  Pre-built session instance to use instead of creating a default one
+</ParamField>
+
+## Resources
+
+The `SyncClient` provides access to various API resources through its properties:
+
+- `client.auth` - Authentication operations
+- `client.health` - Health check endpoints
+- `client.account` - Account management
+- `client.tasks` - Task operations
+- `client.images` - Image operations
+- `client.prompts` - Prompt management
+- `client.payments` - Payment operations
+- `client.genagent` - GenAgent operations
+- `client.characters` - Character operations
+- `client.search` - Search functionality
+- `client.models` - Model management
+- `client.cache` - Client-side caching
+
+## Methods
+
+### request
+
+```python
+def request(
+    self,
+    method: str,
+    path: str,
+    *,
+    response_model: type[T] | None = None,
+    params: Mapping[str, Any] | None = None,
+    headers: Mapping[str, str] | None = None,
+    json: dict[str, Any] | None = None,
+    data: BodyData | None = None,
+    stream: bool = False,
+    multipart: CurlMime | None = None,
+) -> APIEnvelope[Any]
+```
+
+Make an HTTP request to the API server. Builds the absolute URL and default headers, delegates the call to the underlying session, and normalizes the response into an `APIEnvelope`.
+
+#### Parameters
+
+<ParamField path="method" type="str" required>
+  HTTP method (e.g., `"GET"`, `"POST"`, `"PUT"`, `"DELETE"`)
+</ParamField>
+
+<ParamField path="path" type="str" required>
+  API endpoint path (e.g., `"account/login-in"`)
+</ParamField>
+
+<ParamField path="response_model" type="type[T] | None" default="None">
+  Pydantic model used to validate `envelope.data`
+</ParamField>
+
+<ParamField path="params" type="Mapping[str, Any] | None" default="None">
+  Query parameters appended to the URL
+</ParamField>
+
+<ParamField path="headers" type="Mapping[str, str] | None" default="None">
+  Extra headers merged with the request defaults
+</ParamField>
+
+<ParamField path="json" type="dict[str, Any] | None" default="None">
+  JSON-serializable request body
+</ParamField>
+
+<ParamField path="data" type="BodyData | None" default="None">
+  Raw bytes request body
+</ParamField>
+
+<ParamField path="stream" type="bool" default="False">
+  Whether to keep the response stream open
+</ParamField>
+
+<ParamField path="multipart" type="CurlMime | None" default="None">
+  Multipart form-data body (CurlMime instance)
+</ParamField>
+
+#### Returns
+
+`APIEnvelope` wrapping the parsed server response.
+
+#### Raises
+
+- `APIError` - If the HTTP status is 4xx/5xx or the response body cannot be parsed as a valid envelope
+
+#### Note
+
+Provide at most one of `json`, `data`, or `multipart`.
+
+#### Example
+
+```python
+with SyncClient(token="abc123") as client:
+    envelope = client.request("POST", "account/info")
+    print(envelope.value)
+```
+
+### request_stream
+
+```python
+def request_stream(
+    self,
+    method: str,
+    path: str,
+    *,
+    params: Mapping[str, Any] | None = None,
+    headers: Mapping[str, str] | None = None,
+    json: dict[str, Any] | None = None,
+    data: BodyData | None = None,
+    parser: Callable[[SSEEvent, dict[str, Any] | None], T],
+) -> Iterator[T]
+```
+
+Open an SSE (Server-Sent Events) stream and yield parsed items.
+
+#### Parameters
+
+<ParamField path="method" type="str" required>
+  HTTP method (e.g., `"GET"`, `"POST"`)
+</ParamField>
+
+<ParamField path="path" type="str" required>
+  API endpoint path
+</ParamField>
+
+<ParamField path="params" type="Mapping[str, Any] | None" default="None">
+  Query parameters appended to the URL
+</ParamField>
+
+<ParamField path="headers" type="Mapping[str, str] | None" default="None">
+  Extra headers merged with the request defaults
+</ParamField>
+
+<ParamField path="json" type="dict[str, Any] | None" default="None">
+  JSON-serializable request body
+</ParamField>
+
+<ParamField path="data" type="BodyData | None" default="None">
+  Raw bytes request body
+</ParamField>
+
+<ParamField path="parser" type="Callable[[SSEEvent, dict[str, Any] | None], T]" required>
+  Callable that converts each `(SSEEvent, dict | None)` into a typed item to yield
+</ParamField>
+
+#### Yields
+
+Items returned by `parser` for each received SSE event.
+
+#### Raises
+
+- `APIError` - On transport or parse failures
+
+#### Example
+
+```python
+with SyncClient(token="abc123") as client:
+    for item in client.request_stream(
+        "POST", "chat/completions",
+        json={"prompt": "Hello"},
+        parser=client.parse_sse_stream,
+    ):
+        print(item.event, item.data)
+```
+
+### request_raw
+
+```python
+def request_raw(
+    self,
+    method: str,
+    path: str,
+    *,
+    params: Mapping[str, Any] | None = None,
+    headers: Mapping[str, str] | None = None,
+    json: dict[str, Any] | None = None,
+    data: BodyData | None = None,
+    stream: bool = False,
+    multipart: CurlMime | None = None,
+) -> curl.Response
+```
+
+Make an HTTP request and return the raw `curl_cffi` response.
+
+Unlike `request()`, this method does **not** parse the response into an `APIEnvelope`. Use it for endpoints that return non-standard JSON, HTML, binary data, or any format outside the SeaArt API envelope convention.
+
+#### Parameters
+
+<ParamField path="method" type="str" required>
+  HTTP method (e.g., `"GET"`, `"POST"`)
+</ParamField>
+
+<ParamField path="path" type="str" required>
+  API endpoint path (e.g., `"some/page"`)
+</ParamField>
+
+<ParamField path="params" type="Mapping[str, Any] | None" default="None">
+  Query parameters appended to the URL
+</ParamField>
+
+<ParamField path="headers" type="Mapping[str, str] | None" default="None">
+  Extra headers merged with the request defaults
+</ParamField>
+
+<ParamField path="json" type="dict[str, Any] | None" default="None">
+  JSON-serializable request body
+</ParamField>
+
+<ParamField path="data" type="BodyData | None" default="None">
+  Raw bytes request body
+</ParamField>
+
+<ParamField path="stream" type="bool" default="False">
+  Whether to keep the response stream open
+</ParamField>
+
+<ParamField path="multipart" type="CurlMime | None" default="None">
+  Multipart form-data body (CurlMime instance)
+</ParamField>
+
+#### Returns
+
+Raw `curl_cffi.requests.Response` object with `.status_code`, `.content`, `.text`, `.json()`, `.headers`, etc.
+
+#### Raises
+
+- `APIError` - If the transport raises an unexpected error
+
+#### Note
+
+Provide at most one of `json`, `data`, or `multipart`.
+
+#### Example
+
+```python
+with SyncClient() as client:
+    r = client.request_raw("GET", "some/page")
+    print(r.status_code, r.text[:100])
+```
+
+### request_route
+
+```python
+def request_route(
+    self,
+    route: Route,
+    response_model: type[T] | None = None,
+    **kwargs: Unpack[RequestKwargs],
+) -> APIEnvelope[Any]
+```
+
+Convenience method to make a request using a `Route` object. The route contains the HTTP method and path.
+
+#### Parameters
+
+<ParamField path="route" type="Route" required>
+  Route object containing method and path information
+</ParamField>
+
+<ParamField path="response_model" type="type[T] | None" default="None">
+  Pydantic model used to validate response data
+</ParamField>
+
+<ParamField path="**kwargs" type="RequestKwargs">
+  Additional keyword arguments passed to `request()`
+</ParamField>
+
+#### Returns
+
+`APIEnvelope` wrapping the parsed server response.
+
+### close
+
+```python
+def close(self) -> None
+```
+
+Close the underlying HTTP session and release resources.
+
+#### Example
+
+```python
+client = SyncClient(token="abc123")
+try:
+    # Use client...
+    pass
+finally:
+    client.close()
+```
+
+## Context Manager Usage
+
+The `SyncClient` supports the context manager protocol, which automatically handles resource cleanup:
+
+```python
+with SyncClient(token="abc123") as client:
+    info = client.account.me()
+    print(info.value)
+# Session is automatically closed when exiting the context
+```
+
+## Additional Methods
+
+### get_account_id
+
+```python
+def get_account_id(self) -> str | None
+```
+
+Retrieve the current account ID. If not cached, makes an API call to fetch it.
+
+### set_token
+
+```python
+def set_token(self, token: str | None) -> None
+```
+
+Replace the current authentication token. Set to `None` to remove authentication.
+
+### set_default_headers
+
+```python
+def set_default_headers(self, headers: Mapping[str, Any]) -> None
+```
+
+Merge additional headers into the client-level defaults. Existing keys are overwritten.
+
+### clear_default_headers
+
+```python
+def clear_default_headers(self) -> None
+```
+
+Remove all client-level default headers.
+
+### copy
+
+```python
+def copy(self, *, clear_token: bool = True) -> Self
+```
+
+Return a new client instance with the same configuration. By default, the copy is created without the auth token.
+
+## Complete Example
+
+```python
+from seaart import SyncClient
+
+# Initialize client with authentication
+with SyncClient(token="your-api-token") as client:
+    # Get account information
+    account_info = client.account.me()
+    print(f"User ID: {account_info.value.id}")
+    
+    # Make a custom request
+    response = client.request(
+        "POST",
+        "tasks/create",
+        json={
+            "prompt": "A beautiful landscape",
+            "model": "stable-diffusion",
+        }
+    )
+    
+    print(f"Task ID: {response.value.task_id}")
+    
+    # Stream responses
+    for event in client.request_stream(
+        "GET",
+        "tasks/status",
+        params={"task_id": response.value.task_id},
+        parser=client.parse_sse_stream,
+    ):
+        print(f"Event: {event.event}, Data: {event.data}")
+```

@@ -1,0 +1,253 @@
+---
+title: Character Chat
+description: Learn how to create chat sessions, send messages, manage history, and configure character settings
+---
+
+The SeaArt SDK provides a complete interface for chatting with AI characters. You can create sessions, send messages with context, customize AI models, and even save voice responses.
+
+<Note>
+It is recommended to use `AppId.APP` when interacting with characters. Tourist accounts cannot change the AI model without it.
+</Note>
+
+## Basic Chat
+
+Create a chat session and send a single message:
+
+<Steps>
+  <Step title="Extract Character ID">
+    Use the `extract_character_link()` helper to parse a character URL:
+
+    ```python
+    from seaart.helpers import extract_character_link
+
+    CHARACTER_URL = "https://www.seaart.ai/character/chat/d5f5v2te878c73cmjhhg"
+    link = extract_character_link(CHARACTER_URL)
+    character_id = link.character_id
+    ```
+  </Step>
+
+  <Step title="Create Chat Session">
+    Initialize the client and create a chat:
+
+    ```python
+    from seaart import SyncClient
+    from seaart.types import AppId
+
+    with SyncClient(app_id=AppId.APP) as client:
+        client.auth.login(
+            email="your-email@example.com",
+            password="your-password",
+        )
+
+        chat = client.characters.chats.create(character_id)
+        session_id = chat.value.session_id
+    ```
+  </Step>
+
+  <Step title="Send Message">
+    Send a message and get the response:
+
+    ```python
+    try:
+        result = client.characters.chats.send(
+            "Hello! Tell me about yourself.",
+            session_id,
+        )
+        print(result.text)
+        print(f"Message ID: {result.value.response_msg_id}")
+    finally:
+        # Always clean up the session
+        client.characters.chats.delete(session_id)
+    ```
+  </Step>
+</Steps>
+
+## Chat History
+
+Use `ChatHistory` to maintain conversation context across multiple sessions:
+
+```python
+from seaart.helpers import ChatHistory
+
+history = ChatHistory()
+
+# First session
+chat = client.characters.chats.create(character_id)
+session_id = chat.value.session_id
+
+# Save the welcome message
+history.ai(chat.value.msg)
+
+try:
+    result = client.characters.chats.send(
+        "My name is Alex, remember it.",
+        session_id,
+    )
+    # Add both user message and AI response
+    history.user("My name is Alex, remember it.")
+    history.add(result)  # Accepts CharacterChatCompletionResult directly
+    print(f"Session 1: {result.text}")
+finally:
+    client.characters.chats.delete(session_id)
+
+# Second session with history
+chat = client.characters.chats.create(character_id)
+session_id = chat.value.session_id
+
+try:
+    result = client.characters.chats.send(
+        "What's my name?",
+        session_id,
+        history=history.to_input(),  # Character sees full conversation
+    )
+    print(f"Session 2: {result.text}")
+finally:
+    client.characters.chats.delete(session_id)
+```
+
+### ChatHistory Methods
+
+The `ChatHistory` class provides a fluent API for building conversation context:
+
+| Method | Description |
+|--------|-------------|
+| `.user(text, msg_id="")` | Add a user message |
+| `.ai(text, msg_id="")` | Add an assistant message |
+| `.add(source, role=None, msg_id="")` | Add from string, result, or another history |
+| `.delete_last(n=1)` | Remove the last n messages |
+| `.clear()` | Remove all messages |
+| `.copy()` | Create a shallow copy |
+| `.to_input()` | Convert to `HistoryInput` for API calls |
+
+## Model Selection & Settings
+
+Customize the AI model and enable advanced features:
+
+<CodeGroup>
+```python Enable 2x Memory
+# Enable memory across sessions
+client.characters.settings.update(enable_memory=1)
+```
+
+```python Change AI Model
+# Get available models
+models = client.characters.models()
+
+# Find by title (case-insensitive)
+gemini = models.value.by_title("gemini3")
+if gemini:
+    client.characters.settings.update(model=gemini.gpt_model)
+```
+
+```python Verify Settings
+# Start session and check active settings
+start_info = client.characters.chats.start(session_id)
+print(f"Memory enabled: {start_info.value.enable_memory}")
+```
+</CodeGroup>
+
+### Full Example with Settings
+
+```python
+chat = client.characters.chats.create(character_id)
+session_id = chat.value.session_id
+
+try:
+    result = client.characters.chats.send(
+        "Hello!",
+        session_id,
+        model=gemini.gpt_model if gemini else "",  # Pass model explicitly
+    )
+    print(result.text)
+finally:
+    client.characters.chats.delete(session_id)
+```
+
+## Voice Audio
+
+Save character voice responses to audio files:
+
+```python
+chat = client.characters.chats.create(character_id)
+session_id = chat.value.session_id
+
+try:
+    result = client.characters.chats.send("Say something short.", session_id)
+    msg_id = result.value.response_msg_id
+    print(f"Response: {result.text}")
+
+    if msg_id:
+        # Download and save audio file
+        path = client.characters.chats.save_audio(msg_id)
+        if path:
+            print(f"Audio saved to: {path}")
+finally:
+    client.characters.chats.delete(session_id)
+```
+
+<Note>
+Voice audio is only available for messages that have a `response_msg_id`. Not all characters support voice responses.
+</Note>
+
+## Tourist Chat (No Authentication)
+
+Chat without an account using tourist mode:
+
+```python
+with SyncClient(
+    app_id=AppId.APP,
+    default_headers={"x-device-id": "cf51e64c-30ec-453d-9c5c-5357ef159127"}
+) as client:
+    chat = client.characters.chats.create(character_id)
+    session_id = chat.value.session_id
+
+    result = client.characters.chats.send_tourist(
+        "Hello!",
+        session_id,
+    )
+    print(result.text)
+```
+
+<Warning>
+Tourist chats have limitations:
+- Limited message quota
+- Cannot change the AI model
+- Require the `x-device-id` header for session tracking
+</Warning>
+
+## Async Support
+
+All methods have async equivalents:
+
+```python
+from seaart import AsyncClient
+
+async with AsyncClient(app_id=AppId.APP) as client:
+    await client.auth.login(
+        email="your-email@example.com",
+        password="your-password",
+    )
+
+    chat = await client.characters.chats.create(character_id)
+    session_id = chat.value.session_id
+
+    try:
+        result = await client.characters.chats.send(
+            "Hello!",
+            session_id,
+        )
+        print(result.text)
+    finally:
+        await client.characters.chats.delete(session_id)
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Streaming" icon="wave-pulse" href="/guides/streaming">
+    Stream responses in real-time for chat UIs
+  </Card>
+  <Card title="Search" icon="magnifying-glass" href="/guides/search">
+    Find characters by name or category
+  </Card>
+</CardGroup>

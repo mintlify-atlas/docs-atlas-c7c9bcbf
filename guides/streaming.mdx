@@ -1,0 +1,383 @@
+---
+title: Streaming Responses
+description: Stream character chat and GenAgent responses in real-time using Server-Sent Events
+---
+
+The SeaArt SDK supports streaming responses token-by-token, perfect for building interactive chat UIs, bots, and CLI tools.
+
+<Note>
+Use `stream()` when you need real-time output. Use `send()` when you only need the final result.
+</Note>
+
+## Character Chat Streaming
+
+Stream character responses as they're generated.
+
+### Basic Streaming
+
+<Steps>
+  <Step title="Create Chat Session">
+    Initialize a chat with a character:
+
+    ```python
+    from seaart import SyncClient
+    from seaart.helpers import extract_character_link
+    from seaart.types import AppId
+
+    CHARACTER_URL = "https://www.seaart.ai/character/chat/d5f5v2te878c73cmjhhg"
+    link = extract_character_link(CHARACTER_URL)
+    character_id = link.character_id
+
+    client = SyncClient(app_id=AppId.APP)
+    client.auth.login(
+        email="your-email@example.com",
+        password="your-password",
+    )
+
+    chat = client.characters.chats.create(character_id)
+    session_id = chat.value.session_id
+    ```
+  </Step>
+
+  <Step title="Stream the Response">
+    Stream and print each chunk as it arrives:
+
+    ```python
+    try:
+        for item in client.characters.chats.stream(
+            "Tell me a short story.",
+            session_id,
+        ):
+            if item.event == "chunk":
+                print(item.content, end="", flush=True)
+            elif item.event == "end":
+                print(f"\n\n[msg_id={item.response_msg_id}]")
+    finally:
+        client.characters.chats.delete(session_id)
+    ```
+  </Step>
+</Steps>
+
+### Event Types
+
+Streaming yields two event types:
+
+| Event | Description | Fields |
+|-------|-------------|--------|
+| `"chunk"` | Partial response fragment | `.content` - text chunk |
+| `"end"` | Final event with metadata | `.response_msg_id`, `.my_msg_id` |
+
+### Complete Example
+
+```python
+from seaart import SyncClient
+from seaart.helpers import extract_character_link
+from seaart.types import AppId
+import os
+
+CHARACTER_URL = "https://www.seaart.ai/character/chat/d5f5v2te878c73cmjhhg"
+link = extract_character_link(CHARACTER_URL)
+
+with SyncClient(app_id=AppId.APP) as client:
+    client.auth.login(
+        email=os.environ["SEAART_EMAIL"],
+        password=os.environ["SEAART_PASSWORD"],
+    )
+
+    chat = client.characters.chats.create(link.character_id)
+    session_id = chat.value.session_id
+
+    try:
+        full_response = ""
+        for item in client.characters.chats.stream(
+            "Tell me about yourself.",
+            session_id,
+        ):
+            if item.event == "chunk":
+                print(item.content, end="", flush=True)
+                full_response += item.content
+            elif item.event == "end":
+                print(f"\n\nMessage ID: {item.response_msg_id}")
+
+        # Save the full response
+        print(f"\nTotal characters: {len(full_response)}")
+    finally:
+        client.characters.chats.delete(session_id)
+```
+
+## Raw SSE Streaming
+
+Access raw Server-Sent Events without Pydantic validation for debugging or custom processing:
+
+```python
+chat = client.characters.chats.create(character_id)
+session_id = chat.value.session_id
+
+try:
+    for event in client.characters.chats.stream_raw(
+        "Hello!",
+        session_id,
+    ):
+        # event is a SimpleNamespace with .event, .data, .headers
+        print(f"event={event.event}  data={event.data}")
+finally:
+    client.characters.chats.delete(session_id)
+```
+
+<Note>
+`stream_raw()` yields `SimpleNamespace` objects with `.event`, `.data`, and `.headers` attributes. Useful for debugging or accessing fields not exposed in typed models.
+</Note>
+
+## Tourist Streaming
+
+Stream without authentication:
+
+```python
+with SyncClient(
+    app_id=AppId.APP,
+    default_headers={"x-device-id": "cf51e64c-30ec-453d-9c5c-5357ef159127"}
+) as client:
+    chat = client.characters.chats.create(character_id)
+    session_id = chat.value.session_id
+
+    for item in client.characters.chats.stream_tourist(
+        "Hello!",
+        session_id,
+    ):
+        if item.event == "chunk":
+            print(item.content, end="", flush=True)
+    print()
+```
+
+<Warning>
+Tourist streams:
+- Have a limited message quota
+- Require the `x-device-id` header for session tracking
+- Cannot change the AI model
+</Warning>
+
+## GenAgent Streaming
+
+Stream GenAgent (AI assistant) responses.
+
+### Basic GenAgent Streaming
+
+```python
+from seaart import SyncClient
+
+with SyncClient() as client:
+    client.auth.login(
+        email="your-email@example.com",
+        password="your-password",
+    )
+
+    conv = client.genagent.create()
+    conv_id = conv.value.conv_id
+
+    try:
+        for item in client.genagent.messages.stream(
+            "Write a prompt for a fantasy character.",
+            conv_id,
+        ):
+            if item.event == "message":
+                print(item.text, end="", flush=True)
+        print()
+    finally:
+        client.genagent.delete(conv_id)
+```
+
+### GenAgent Event Types
+
+GenAgent streaming uses different event names:
+
+| Event | Description | Fields |
+|-------|-------------|--------|
+| `"message"` | Text chunk | `.text` - content chunk |
+| `"done"` | Streaming complete | Metadata fields |
+
+### With Image Attachments
+
+Stream responses with image context:
+
+```python
+from seaart.options import GenAgentReqOptions
+from seaart.options.gen_agent_messages import ImagePartOptions
+
+conv = client.genagent.create()
+conv_id = conv.value.conv_id
+
+try:
+    for item in client.genagent.messages.stream(
+        "Describe this image and suggest improvements.",
+        conv_id,
+        options=GenAgentReqOptions(
+            images=[
+                ImagePartOptions(
+                    url="https://example.com/image.jpg",
+                )
+            ]
+        ),
+    ):
+        if item.event == "message":
+            print(item.text, end="", flush=True)
+    print()
+finally:
+    client.genagent.delete(conv_id)
+```
+
+## Async Streaming
+
+All streaming methods have async equivalents:
+
+<Tabs>
+  <Tab title="Character Chat">
+    ```python
+    from seaart import AsyncClient
+
+    async with AsyncClient(app_id=AppId.APP) as client:
+        await client.auth.login(
+            email="your-email@example.com",
+            password="your-password",
+        )
+
+        chat = await client.characters.chats.create(character_id)
+        session_id = chat.value.session_id
+
+        try:
+            async for item in client.characters.chats.stream(
+                "Tell me a story.",
+                session_id,
+            ):
+                if item.event == "chunk":
+                    print(item.content, end="", flush=True)
+                elif item.event == "end":
+                    print(f"\n\n[msg_id={item.response_msg_id}]")
+        finally:
+            await client.characters.chats.delete(session_id)
+    ```
+  </Tab>
+
+  <Tab title="GenAgent">
+    ```python
+    from seaart import AsyncClient
+
+    async with AsyncClient() as client:
+        await client.auth.login(
+            email="your-email@example.com",
+            password="your-password",
+        )
+
+        conv = await client.genagent.create()
+        conv_id = conv.value.conv_id
+
+        try:
+            async for item in client.genagent.messages.stream(
+                "Generate a creative prompt.",
+                conv_id,
+            ):
+                if item.event == "message":
+                    print(item.text, end="", flush=True)
+            print()
+        finally:
+            await client.genagent.delete(conv_id)
+    ```
+  </Tab>
+</Tabs>
+
+## Building a Chat UI
+
+Example of integrating streaming into a chat application:
+
+```python
+import sys
+from seaart import SyncClient
+from seaart.helpers import ChatHistory, extract_character_link
+from seaart.types import AppId
+
+def chat_loop(client, character_id):
+    """Interactive chat loop with streaming responses."""
+    history = ChatHistory()
+    chat = client.characters.chats.create(character_id)
+    session_id = chat.value.session_id
+
+    # Add welcome message
+    history.ai(chat.value.msg)
+    print(f"Character: {chat.value.msg}\n")
+
+    try:
+        while True:
+            # Get user input
+            user_input = input("You: ").strip()
+            if not user_input or user_input.lower() in ["quit", "exit"]:
+                break
+
+            history.user(user_input)
+
+            # Stream response
+            print("Character: ", end="", flush=True)
+            full_response = ""
+
+            for item in client.characters.chats.stream(
+                user_input,
+                session_id,
+                history=history.to_input(),
+            ):
+                if item.event == "chunk":
+                    print(item.content, end="", flush=True)
+                    full_response += item.content
+                elif item.event == "end":
+                    history.ai(full_response, msg_id=item.response_msg_id or "")
+
+            print("\n")
+
+    finally:
+        client.characters.chats.delete(session_id)
+
+# Usage
+with SyncClient(app_id=AppId.APP) as client:
+    client.auth.login(
+        email="your-email@example.com",
+        password="your-password",
+    )
+
+    link = extract_character_link(
+        "https://www.seaart.ai/character/chat/d5f5v2te878c73cmjhhg"
+    )
+    chat_loop(client, link.character_id)
+```
+
+## Error Handling
+
+Handle streaming errors gracefully:
+
+```python
+from seaart.exceptions import SeaArtAPIError
+
+try:
+    for item in client.characters.chats.stream(
+        "Hello!",
+        session_id,
+    ):
+        if item.event == "chunk":
+            print(item.content, end="", flush=True)
+        elif item.event == "error":
+            print(f"\nError: {item.message}")
+            break
+except SeaArtAPIError as e:
+    print(f"API Error: {e}")
+except KeyboardInterrupt:
+    print("\nStreaming interrupted")
+finally:
+    client.characters.chats.delete(session_id)
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Character Chat" icon="messages" href="/guides/character-chat">
+    Learn about non-streaming chat features
+  </Card>
+  <Card title="GenAgent" icon="robot" href="/guides/gen-agent">
+    Explore GenAgent capabilities
+  </Card>
+</CardGroup>
