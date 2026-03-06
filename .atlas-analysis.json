@@ -1,0 +1,127 @@
+{
+  "projectType": "sdk-library",
+  "projectName": "SeaArt Python SDK",
+  "projectDescription": "Unofficial typed Python client for the SeaArt.ai API with sync and async support",
+  "theme": "palm",
+  "primaryColor": "#94cb04",
+  "lightColor": "#545454",
+  "darkColor": null,
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/authentication",
+              "concepts/sync-vs-async",
+              "concepts/error-handling"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/character-chat",
+              "guides/image-generation",
+              "guides/streaming",
+              "guides/search",
+              "guides/gen-agent"
+            ]
+          },
+          {
+            "group": "Examples",
+            "pages": [
+              "examples/chat-basics",
+              "examples/image-workflows",
+              "examples/async-usage",
+              "examples/custom-requests"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Client",
+            "pages": [
+              "api/sync-client",
+              "api/async-client"
+            ]
+          },
+          {
+            "group": "Resources",
+            "pages": [
+              "api/auth",
+              "api/account",
+              "api/characters",
+              "api/images",
+              "api/gen-agent",
+              "api/search",
+              "api/models",
+              "api/tasks",
+              "api/prompts",
+              "api/payments"
+            ]
+          },
+          {
+            "group": "Types & Helpers",
+            "pages": [
+              "api/types",
+              "api/helpers",
+              "api/exceptions"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Sync and async clients with identical APIs",
+    "Fully typed with Pydantic v2 models",
+    "SSE streaming for character chat and GenAgent",
+    "Task polling with envelope.wait()",
+    "Character chat with history management",
+    "Image generation (text-to-image, img-to-img, upscaling)",
+    "Search characters, models, and works",
+    "Built on curl-cffi with HTTP/2 and HTTP/3 support"
+  ],
+  "publicApiSurface": [
+    "SyncClient",
+    "AsyncClient",
+    "client.auth.login()",
+    "client.auth.login_as_tourist()",
+    "client.account.me()",
+    "client.characters.chats.create()",
+    "client.characters.chats.send()",
+    "client.characters.chats.stream()",
+    "client.images.text_to_img()",
+    "client.images.img_to_img()",
+    "client.images.upscale()",
+    "client.images.remove_background()",
+    "client.genagent.send()",
+    "client.genagent.stream()",
+    "client.search.characters()",
+    "client.search.models()",
+    "client.search.works()",
+    "client.models.detail()",
+    "client.tasks.detail()",
+    "client.prompts.optimize()",
+    "helpers.ChatHistory",
+    "helpers.extract_character_link()",
+    "helpers.extract_model_link()",
+    "helpers.extract_task_id_from_image_url()",
+    "types.AppId",
+    "types.Role",
+    "types.ImageSize"
+  ]
+}
